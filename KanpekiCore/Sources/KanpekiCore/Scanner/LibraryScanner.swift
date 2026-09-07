@@ -101,6 +101,7 @@ public actor LibraryScanner {
     }
 
     static func openCoordinated(_ url: URL) throws -> ZipArchive {
+        guard DownloadManager.isLocalNow(url) else { throw LibraryError.notAvailable(ContentID(rawValue: url.lastPathComponent)) }
         var result: Result<ZipArchive, Error>?
         var coordErr: NSError?
         NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordErr) { u in

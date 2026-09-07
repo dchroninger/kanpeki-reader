@@ -10,6 +10,18 @@ import os
 public actor DownloadManager {
     public static let defaultCap: Int64 = 2 * 1024 * 1024 * 1024
 
+    /// Automatic eviction is a phone/tablet policy. A Mac holds the whole
+    /// library and iCloud Drive already offers "Optimize Mac Storage";
+    /// evicting there once threw 8 GB off a user's disk. Manual eviction
+    /// stays available everywhere.
+    public static var automaticEvictionSupported: Bool {
+        #if os(macOS)
+        false
+        #else
+        true
+        #endif
+    }
+
     private let fm = FileManager.default
     private let defaults: UserDefaults
     private var lastAccess: [String: Date]   // relativePath -> last open
@@ -49,20 +61,34 @@ public actor DownloadManager {
         log.info("startDownloading \(item.name, privacy: .private)")
     }
 
+    /// Fresh answer from the file system, not the monitor's last snapshot.
+    public nonisolated static func isLocalNow(_ url: URL) -> Bool {
+        guard let v = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
+              let s = v.ubiquitousItemDownloadingStatus else { return true } // non-ubiquitous
+        return s == .current || s == .downloaded
+    }
+
     /// Await local bytes. Polls resource values; the monitor drives UI.
     public func ensureLocal(_ item: CloudFileItem, isUbiquitous: Bool) async throws {
         touch(item)
-        guard isUbiquitous else { return }
-        var v = try item.url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
-        if v.ubiquitousItemDownloadingStatus == .current || v.ubiquitousItemDownloadingStatus == .downloaded { return }
+        guard isUbiquitous, !Self.isLocalNow(item.url) else { return }
         try fm.startDownloadingUbiquitousItem(at: item.url)
         while true {
             try await Task.sleep(for: .milliseconds(400))
             try Task.checkCancellation()
-            v = try item.url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey])
+            let v = try item.url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey])
             if let e = v.ubiquitousItemDownloadingError { throw e }
             if v.ubiquitousItemDownloadingStatus == .current || v.ubiquitousItemDownloadingStatus == .downloaded { return }
         }
+    }
+
+    /// Kick off downloads for everything not local. Progress via the monitor.
+    public func downloadAll(_ items: [CloudFileItem]) -> Int {
+        var n = 0
+        for i in items where !i.isLocal {
+            if (try? fm.startDownloadingUbiquitousItem(at: i.url)) != nil { n += 1 }
+        }
+        return n
     }
 
     public func evict(_ item: CloudFileItem) throws {
@@ -81,6 +107,7 @@ public actor DownloadManager {
     /// Never-opened files count as oldest. Pinned files are skipped.
     @discardableResult
     public func enforceCap(_ items: [CloudFileItem]) -> [CloudFileItem] {
+        guard Self.automaticEvictionSupported else { return [] }
         let cap = byteCap
         var total = localBytes(items)
         guard total > cap else { return [] }

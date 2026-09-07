@@ -24,9 +24,16 @@ struct StorageView: View {
                 }
                 Section("On-device storage") {
                     LabeledContent("Local now", value: model.localBytes.formatted(.byteCount(style: .file)))
-                    Picker("Keep at most", selection: $model.byteCap) {
-                        ForEach(caps, id: \.self) { Text($0.formatted(.byteCount(style: .file))).tag($0) }
+                    if model.automaticEvictionSupported {
+                        Picker("Keep at most", selection: $model.byteCap) {
+                            ForEach(caps, id: \.self) { Text($0.formatted(.byteCount(style: .file))).tag($0) }
+                        }
+                    } else {
+                        Text("Automatic eviction is off on the Mac; iCloud Drive's \"Optimize Mac Storage\" governs local copies.")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
+                    Button("Download everything", systemImage: "icloud.and.arrow.down") { model.downloadAll() }
+                        .disabled(model.backend?.isCloud != true || model.items.allSatisfy(\.isLocal))
                     Button("Evict everything now", systemImage: "xmark.icloud", role: .destructive) { model.evictAll() }
                         .disabled(model.backend?.isCloud != true)
                     if !model.evictions.isEmpty {

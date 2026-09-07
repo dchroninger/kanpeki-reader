@@ -53,6 +53,14 @@ steps pages (RTL-aware buttons), and round-trips the position through
 
 ## Design notes that came out of building it
 
+- **No automatic eviction on macOS.** First run against the real library
+  evicted ~8 GB because the 2 GB LRU cap applied on the Mac. Policy is now
+  iOS-only (`DownloadManager.automaticEvictionSupported`). Opening an
+  archive pins it *before* it is mapped, and every open re-checks
+  `ubiquitousItemDownloadingStatus` instead of trusting the monitor's last
+  snapshot, so an evicted file surfaces as "not downloaded" rather than a
+  blocking read or an archive with no pages.
+
 - **Provisional IDs.** A file that is not downloaded has no content to
   hash, so its row is keyed `path:<relative path>` until scanned. Such an
   ID is never written to the sync store (you cannot read pages of it

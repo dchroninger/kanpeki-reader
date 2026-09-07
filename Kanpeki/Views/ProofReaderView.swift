@@ -50,7 +50,7 @@ struct ProofReaderView: View {
                 } else {
                     VStack(spacing: 12) {
                         ProgressView()
-                        Text(status).foregroundStyle(.white)
+                        Text(liveStatus).foregroundStyle(.white)
                         if case .downloading(let f) = liveAvailability { ProgressView(value: f).frame(width: 200).tint(.white) }
                     }
                 }
@@ -89,6 +89,16 @@ struct ProofReaderView: View {
         #if os(iOS)
         .statusBarHidden(true)
         #endif
+    }
+
+    /// Follows the monitor, so an eviction or a slow download shows as such.
+    private var liveStatus: String {
+        switch liveAvailability {
+        case .local: status
+        case .remote(let b): "Waiting for iCloud download (\(b.formatted(.byteCount(style: .file))))…"
+        case .downloading(let f): "Downloading from iCloud… \(Int(f * 100))%"
+        case .unknown: status
+        }
     }
 
     private var liveAvailability: Availability {

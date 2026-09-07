@@ -56,11 +56,11 @@ public actor CloudLibrarySource: LibrarySource {
     public func prepare(volume: ContentID) async throws {
         let (item, _) = try locate(volume)
         try await downloads.ensureLocal(item, isUbiquitous: isUbiquitous)
-        _ = try archive(for: volume)
+        _ = try await archive(for: volume)
     }
 
     public func pageData(volume: ContentID, index: Int) async throws -> Data {
-        let zip = try archive(for: volume)
+        let zip = try await archive(for: volume)
         return try zip.pageData(index)
     }
 
@@ -117,18 +117,22 @@ public actor CloudLibrarySource: LibrarySource {
         return (item, r)
     }
 
-    private func archive(for id: ContentID) throws -> ZipArchive {
+    private func archive(for id: ContentID) async throws -> ZipArchive {
         if let i = open.firstIndex(where: { $0.id == id }) {
             let e = open.remove(at: i); open.append(e); return e.zip
         }
         let (item, _) = try locate(id)
-        guard item.isLocal else { throw LibraryError.notAvailable(id) }
-        let zip = try LibraryScanner.openCoordinated(item.url)
+        // The monitor's snapshot can be stale; ask the file system. Mapping a
+        // dataless iCloud file would block on a download (or read garbage).
+        guard item.isLocal, !isUbiquitous || DownloadManager.isLocalNow(item.url) else { throw LibraryError.notAvailable(id) }
+        await downloads.pin(item)   // before mapping, so eviction can never race the mmap
+        let zip: ZipArchive
+        do { zip = try LibraryScanner.openCoordinated(item.url) }
+        catch { await downloads.unpin(item); throw error }
         open.append((id, item, zip))
-        Task { await downloads.pin(item) }
         while open.count > maxOpen {
             let e = open.removeFirst()
-            Task { await downloads.unpin(e.item) }
+            await downloads.unpin(e.item)
         }
         return zip
     }

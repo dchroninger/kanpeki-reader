@@ -68,7 +68,10 @@ against the same quota for zero benefit.
 
 iOS cannot hold 10 GB locally. Required:
 - `startDownloadingUbiquitousItem` on open, with real "not downloaded" UI
-- `evictUbiquitousItem` under an LRU byte cap
+- `evictUbiquitousItem` under an LRU byte cap — **iOS/iPadOS only.** The
+  Mac holds the whole library; automatic eviction there threw 8 GB off the
+  disk on first run (2026-09-07). iCloud Drive's own "Optimize Mac
+  Storage" governs the Mac; the app only evicts on explicit request.
 - `NSMetadataQuery` to observe the folder, `NSFileCoordinator` for access
 
 **The eviction policy is the hard part and most of what separates this

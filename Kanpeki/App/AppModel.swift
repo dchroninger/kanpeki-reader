@@ -162,8 +162,14 @@ final class AppModel {
         }
     }
 
+    var automaticEvictionSupported: Bool { DownloadManager.automaticEvictionSupported }
+
+    func downloadAll() {
+        Task { _ = await downloads.downloadAll(items); monitor?.refresh() }
+    }
+
     func enforceCap() async {
-        guard backend?.isCloud == true else { return }
+        guard backend?.isCloud == true, DownloadManager.automaticEvictionSupported else { return }
         let evicted = await downloads.enforceCap(items)
         if !evicted.isEmpty { evictions = await downloads.evictionLog; monitor?.refresh() }
     }
