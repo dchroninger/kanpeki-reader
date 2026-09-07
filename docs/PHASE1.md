@@ -33,15 +33,10 @@ steps pages (RTL-aware buttons), and round-trips the position through
    BookTrove 17 Pro / iPad Air sims (or use real devices). Without it the
    app deliberately falls back to a local folder and a local sync store,
    and says so in the status chip.
-3. **Phase 0.** The Claude process is TCC-blocked from
-   `~/Library/Mobile Documents`. Grant Full Disk Access (or Files and
-   Folders → iCloud Drive) to the Claude app, then:
-
-       ~/Manga/tools/venv/bin/python tools/phase0_comicinfo.py --dry
-       ~/Manga/tools/venv/bin/python tools/phase0_comicinfo.py
-
-   Report lands in `tools/phase0_report.log`. Preserves entry order and
-   per-entry compression; verifies CRCs before the atomic replace.
+3. ~~Phase 0.~~ Done 2026-09-07 after Full Disk Access was granted. 159
+   archives rewritten in place (ComicInfo.xml + sequential entry names),
+   verified per position, ~50 s total. Content IDs changed, so the few
+   positions set before it are orphaned; the Mac republished the index.
 
 ## Then the actual Phase 1 acceptance test
 

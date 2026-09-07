@@ -14,10 +14,11 @@ rationale, and the phased plan.
 
 ## Status
 
-Phase 1 plumbing built and exercised on the iOS 26.5 simulator against a
-local folder; iCloud/CloudKit paths are implemented but unverified until
-the account blockers in `docs/PHASE1.md` are cleared. Phase 0 script is
-ready (`tools/phase0_comicinfo.py`), not yet run on the real library.
+Phase 0 done (every archive has ComicInfo.xml, entries named in reading
+order). Phase 1 verified end to end on a Mac, iPhone, and the real 10 GB
+library in iCloud: enumerate, download on demand, page-curl reader,
+positions and a cover/metadata index through CloudKit. See
+`docs/PHASE1.md` for what was learned.
 
 ## Build
 

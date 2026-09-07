@@ -32,3 +32,4 @@ Secrets.xcconfig
 # Never commit library content
 *.cbz
 *.cbr
+tools/phase0_report.log
