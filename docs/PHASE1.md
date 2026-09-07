@@ -53,6 +53,13 @@ steps pages (RTL-aware buttons), and round-trips the position through
 
 ## Design notes that came out of building it
 
+- **`UIPageViewController` spine location does not reverse navigation.**
+  With `.spineLocation = .max` the page still curls from the *left* edge
+  for "before". For an RTL book the data source must be fed in reverse
+  reading order (`viewControllerAfter` = previous page) and
+  `NavigationDirection` flipped. Verify direction with a known start page;
+  a screenshot after the drag alone proves nothing.
+
 - **No automatic eviction on macOS.** First run against the real library
   evicted ~8 GB because the 2 GB LRU cap applied on the Mac. Policy is now
   iOS-only (`DownloadManager.automaticEvictionSupported`). Opening an

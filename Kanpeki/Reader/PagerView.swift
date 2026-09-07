@@ -62,15 +62,38 @@ struct PagerView: UIViewControllerRepresentable {
             SpreadViewController(pages: pages, rightToLeft: parent.rightToLeft, provider: provider)
         }
 
+        /// UIKit's "forward" always curls the right edge over, whatever the
+        /// spine. In an RTL book the next page lives under the left edge, so
+        /// reading-forward maps to UIKit-reverse.
+        private func uiDirection(readingForward: Bool) -> UIPageViewController.NavigationDirection {
+            (readingForward != parent.rightToLeft) ? .forward : .reverse
+        }
+
         func show(startingAt p: Int, direction: UIPageViewController.NavigationDirection, animated: Bool) {
+            show(startingAt: p, readingForward: direction == .forward, animated: animated)
+        }
+
+        func show(startingAt p: Int, readingForward: Bool, animated: Bool) {
             let pages = provider.spread(startingAt: p, twoUp: twoUp)
             guard !pages.isEmpty, let pvc else { return }
             let vc = controller(for: pages)
             currentPages = pages
-            pvc.setViewControllers([vc], direction: direction, animated: animated) { [weak self] _ in
+            pvc.setViewControllers([vc], direction: uiDirection(readingForward: readingForward), animated: animated) { [weak self] _ in
                 self?.commit(pages, userDriven: false)
             }
             if !animated { commit(pages, userDriven: false) }
+        }
+
+        // Reading order, independent of UIKit's notion of before/after.
+        private func nextSpread(after vc: UIViewController) -> SpreadViewController? {
+            guard let last = (vc as? SpreadViewController)?.pages.last else { return nil }
+            let n = provider.spread(startingAt: last + 1, twoUp: twoUp)
+            return n.isEmpty ? nil : controller(for: n)
+        }
+        private func previousSpread(before vc: UIViewController) -> SpreadViewController? {
+            guard let first = (vc as? SpreadViewController)?.pages.first else { return nil }
+            let p = provider.spread(endingAt: first - 1, twoUp: twoUp)
+            return p.isEmpty ? nil : controller(for: p)
         }
 
         private func commit(_ pages: [Int], userDriven: Bool) {
@@ -81,18 +104,15 @@ struct PagerView: UIViewControllerRepresentable {
             if userDriven { parent.onUserTurn() }
         }
 
-        // MARK: Data source — "after" is the next spread in reading order.
+        // MARK: Data source — UIKit "after" sits under the right edge. For an
+        // RTL book that is the *previous* page in reading order.
 
         func pageViewController(_ pvc: UIPageViewController, viewControllerAfter vc: UIViewController) -> UIViewController? {
-            guard let last = (vc as? SpreadViewController)?.pages.last else { return nil }
-            let next = provider.spread(startingAt: last + 1, twoUp: twoUp)
-            return next.isEmpty ? nil : controller(for: next)
+            parent.rightToLeft ? previousSpread(before: vc) : nextSpread(after: vc)
         }
 
         func pageViewController(_ pvc: UIPageViewController, viewControllerBefore vc: UIViewController) -> UIViewController? {
-            guard let first = (vc as? SpreadViewController)?.pages.first else { return nil }
-            let prev = provider.spread(endingAt: first - 1, twoUp: twoUp)
-            return prev.isEmpty ? nil : controller(for: prev)
+            parent.rightToLeft ? nextSpread(after: vc) : previousSpread(before: vc)
         }
 
         func pageViewController(_ pvc: UIPageViewController, didFinishAnimating finished: Bool,
@@ -114,9 +134,8 @@ struct PagerView: UIViewControllerRepresentable {
 
         func turn(forward: Bool) {
             guard let pvc, let cur = pvc.viewControllers?.first else { return }
-            let target = forward ? pageViewController(pvc, viewControllerAfter: cur) : pageViewController(pvc, viewControllerBefore: cur)
-            guard let target = target as? SpreadViewController else { return }
-            pvc.setViewControllers([target], direction: forward ? .forward : .reverse, animated: true) { [weak self] done in
+            guard let target = forward ? nextSpread(after: cur) : previousSpread(before: cur) else { return }
+            pvc.setViewControllers([target], direction: uiDirection(readingForward: forward), animated: true) { [weak self] done in
                 if done { self?.commit(target.pages, userDriven: true) }
             }
         }
