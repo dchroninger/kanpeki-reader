@@ -20,11 +20,15 @@ steps pages (RTL-aware buttons), and round-trips the position through
 
 ## Blockers only you can clear
 
-1. **Xcode account.** `xcodebuild -allowProvisioningUpdates` reports the
-   stored login for the developer account was rejected. Re-sign in at
-   Xcode → Settings → Accounts. That mints the Mac Development cert
-   (native macOS run) and registers `iCloud.com.dchroninger.kanpeki` on
-   the portal (CloudKit will not work until the container exists).
+1. ~~Xcode account.~~ Resolved 2026-09-07. Native macOS build:
+
+       xcodebuild -project Kanpeki.xcodeproj -scheme Kanpeki \
+         -destination 'platform=macOS' -allowProvisioningUpdates \
+         -allowProvisioningDeviceRegistration build
+
+   Verified on the Mac: ubiquity container resolves, files dropped in
+   `iCloud Drive/Kanpeki` are enumerated by `NSMetadataQuery`, CloudKit
+   zone created, positions written and read back after a cold launch.
 2. **iCloud on simulators.** Sign into iCloud in Settings on the
    BookTrove 17 Pro / iPad Air sims (or use real devices). Without it the
    app deliberately falls back to a local folder and a local sync store,
@@ -55,6 +59,11 @@ steps pages (RTL-aware buttons), and round-trips the position through
   anyway). `prepare()` upgrades it to the real content hash.
 - **Byte-identical archives share a ContentID** and are listed once.
   The real `b` variants differ in content and stay distinct.
+- **`com.apple.developer.icloud-container-environment` must be in the
+  entitlements** (Development for Debug, Production for Release, via
+  `KANPEKI_CLOUDKIT_ENV` in project.yml). Xcode's capability UI injects
+  it silently; a generated project does not, and CloudKit then fails with
+  "couldn't get container configuration from the server".
 - **xcodegen owns the entitlements file.** It regenerates it from
   `project.yml`; an edited file gets overwritten with an empty dict.
 - **Simulator entitlements** live in the `__TEXT,__entitlements` section,

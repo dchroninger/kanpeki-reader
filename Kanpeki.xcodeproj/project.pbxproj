@@ -217,6 +217,7 @@
 				INFOPLIST_FILE = Kanpeki/Resources/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				KANPEKI_CLOUDKIT_ENV = Production;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -376,6 +377,7 @@
 				INFOPLIST_FILE = Kanpeki/Resources/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				KANPEKI_CLOUDKIT_ENV = Development;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
