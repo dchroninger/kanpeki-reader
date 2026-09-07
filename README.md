@@ -14,7 +14,19 @@ rationale, and the phased plan.
 
 ## Status
 
-Phase 0. Nothing built yet. Xcode project not yet created.
+Phase 1 plumbing built and exercised on the iOS 26.5 simulator against a
+local folder; iCloud/CloudKit paths are implemented but unverified until
+the account blockers in `docs/PHASE1.md` are cleared. Phase 0 script is
+ready (`tools/phase0_comicinfo.py`), not yet run on the real library.
+
+## Build
+
+    xcodegen generate            # project.yml is the source of truth
+    open Kanpeki.xcodeproj       # scheme: Kanpeki (iOS + macOS)
+    (cd KanpekiCore && swift test)
+
+Entitlements are generated from `project.yml` — edit them there, not the
+`.entitlements` file.
 
 ## Principles
 
