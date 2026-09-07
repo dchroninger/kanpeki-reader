@@ -62,10 +62,18 @@ public actor DownloadManager {
     }
 
     /// Fresh answer from the file system, not the monitor's last snapshot.
+    /// Foundation caches resource values on a URL, so always read through a
+    /// new URL value — polling the same one returns the first answer forever.
     public nonisolated static func isLocalNow(_ url: URL) -> Bool {
-        guard let v = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
+        guard let v = try? Self.fresh(url).resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
               let s = v.ubiquitousItemDownloadingStatus else { return true } // non-ubiquitous
         return s == .current || s == .downloaded
+    }
+
+    private nonisolated static func fresh(_ url: URL) -> URL {
+        var u = URL(fileURLWithPath: url.path)
+        u.removeAllCachedResourceValues()
+        return u
     }
 
     /// Await local bytes. Polls resource values; the monitor drives UI.
@@ -76,7 +84,7 @@ public actor DownloadManager {
         while true {
             try await Task.sleep(for: .milliseconds(400))
             try Task.checkCancellation()
-            let v = try item.url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey])
+            let v = try Self.fresh(item.url).resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey])
             if let e = v.ubiquitousItemDownloadingError { throw e }
             if v.ubiquitousItemDownloadingStatus == .current || v.ubiquitousItemDownloadingStatus == .downloaded { return }
         }

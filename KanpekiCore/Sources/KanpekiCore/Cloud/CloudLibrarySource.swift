@@ -124,7 +124,9 @@ public actor CloudLibrarySource: LibrarySource {
         let (item, _) = try locate(id)
         // The monitor's snapshot can be stale; ask the file system. Mapping a
         // dataless iCloud file would block on a download (or read garbage).
-        guard item.isLocal, !isUbiquitous || DownloadManager.isLocalNow(item.url) else { throw LibraryError.notAvailable(id) }
+        // Cloud source: the file system is the truth (the monitor lags a
+        // just-finished download). Plain folder: the snapshot is all we have.
+        guard isUbiquitous ? DownloadManager.isLocalNow(item.url) : item.isLocal else { throw LibraryError.notAvailable(id) }
         await downloads.pin(item)   // before mapping, so eviction can never race the mmap
         let zip: ZipArchive
         do { zip = try LibraryScanner.openCoordinated(item.url) }
