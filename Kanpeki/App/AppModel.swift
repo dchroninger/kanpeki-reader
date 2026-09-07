@@ -37,6 +37,7 @@ final class AppModel {
     /// Decoded covers, keyed by volume. Filled at launch so the grid reads
     /// as a library instead of a wall of placeholders.
     private(set) var covers: [ContentID: CGImage] = [:]
+    private(set) var comicInfoTally: (scanned: Int, withComicInfo: Int) = (0, 0)
     private(set) var indexPublished = 0
     private(set) var indexApplied = 0
     private var coverTask: Task<Void, Never>?
@@ -111,6 +112,7 @@ final class AppModel {
                 Task { @MainActor [weak self] in self?.scanProgress = (done, total) }
             }
             scanSummary = summary
+            comicInfoTally = (try? await scanner.comicInfoTally()) ?? (0, 0)
         } catch { startupError = "Scan failed: \(error.localizedDescription)" }
         scanProgress = nil
         await applyIndex()

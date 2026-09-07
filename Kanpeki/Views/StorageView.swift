@@ -17,6 +17,7 @@ struct StorageView: View {
                     if let s = model.scanSummary {
                         LabeledContent("Last scan", value: "\(s.scanned) scanned · \(s.provisional) remote · \(s.unchanged) unchanged · \(s.removed) removed · \(s.failed) failed")
                     }
+                    LabeledContent("ComicInfo.xml", value: "\(model.comicInfoTally.withComicInfo) of \(model.comicInfoTally.scanned) scanned archives")
                     Button("Reveal in \(revealTarget)", systemImage: "folder") { model.revealInFiles() }
                     Button("Rebuild cache from files", systemImage: "arrow.counterclockwise") { Task { await model.rebuildCache() } }
                         .disabled(model.isScanning)

@@ -90,6 +90,13 @@ public actor LibraryScanner {
 
     public func count() throws -> Int { try modelContext.fetchCount(FetchDescriptor<VolumeRecord>()) }
 
+    /// (scanned locally, of which carry ComicInfo.xml) — Phase 0 progress.
+    public func comicInfoTally() throws -> (scanned: Int, withComicInfo: Int) {
+        let scanned = try modelContext.fetchCount(FetchDescriptor<VolumeRecord>(predicate: #Predicate { $0.contentID != nil }))
+        let with = try modelContext.fetchCount(FetchDescriptor<VolumeRecord>(predicate: #Predicate { $0.contentID != nil && $0.hasComicInfo }))
+        return (scanned, with)
+    }
+
     private func insert(_ item: CloudFileItem) -> VolumeRecord {
         let m = FilenameMetadata.parse(fileName: item.name, parentFolder: item.parentFolder)
         let r = VolumeRecord(relativePath: item.relativePath, series: m.series, number: m.number,
