@@ -49,6 +49,7 @@ final class AppModel {
     let downloads = DownloadManager()
     private let log = Logger(subsystem: "com.dchroninger.kanpeki", category: "app")
     private var scanTask: Task<Void, Never>?
+    private var lastScanSignature: [String] = []
 
     init() {
         do { container = try LibraryStore.makeContainer() }
@@ -90,7 +91,13 @@ final class AppModel {
                 self.items = snapshot
                 await src.update(items: snapshot)
                 self.localBytes = await self.downloads.localBytes(snapshot)
-                self.scheduleScan(snapshot)
+                // iCloud emits a snapshot for every upload/download tick; only
+                // a change in what's on disk warrants a rescan.
+                let signature = snapshot.map { "\($0.relativePath)|\($0.size)|\($0.modified?.timeIntervalSince1970 ?? 0)|\($0.isLocal)" }
+                if signature != self.lastScanSignature {
+                    self.lastScanSignature = signature
+                    self.scheduleScan(snapshot)
+                }
             }
         }
         mon.start()

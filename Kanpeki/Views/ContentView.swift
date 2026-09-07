@@ -11,7 +11,11 @@ struct ContentView: View {
             List(selection: $selectedSeries) {
                 ForEach(model.series) { s in
                     NavigationLink(value: s.name) {
-                        LabeledContent(s.name) { Text("\(s.volumeCount)").monospacedDigit().foregroundStyle(.secondary) }
+                        HStack {
+                            Text(s.name).lineLimit(1).truncationMode(.tail)
+                            Spacer(minLength: 8)
+                            Text("\(s.volumeCount)").monospacedDigit().foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
