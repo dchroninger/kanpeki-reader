@@ -33,7 +33,12 @@ public actor CloudKitSyncStore: SyncStore {
         self.defaults = defaults
         // Change tokens only replay what changed since last time; what we
         // already pulled must survive a relaunch on disk.
-        cache = Self.load("positions") ?? [:]
+        if let saved: [String: ReadingProgress] = Self.load("positions") {
+            cache = saved
+        } else {
+            cache = [:]
+            defaults.removeObject(forKey: tokenKey)   // nothing on disk: replay the zone from the start
+        }
         index = Self.load("index") ?? [:]
     }
 
