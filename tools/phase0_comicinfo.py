@@ -5,11 +5,15 @@
 
 Per archive: read every image header for dimensions, build ComicInfo.xml,
 rebuild to a temp file in the exact original entry order preserving each
-entry's compression method, verify (order, CRCs, sizes, testzip, XML
-parses), then atomically replace. Aborts the archive on any mismatch.
+entry's compression method, renaming image entries to a zero-padded
+sequence (0000.jpg, 0001.jpg, ...) so filename sort == reading order in
+every reader, verify (count, per-position CRCs/sizes/methods, testzip,
+XML parses, sorted names == entry order), then atomically replace.
+Aborts the archive on any mismatch. Entry order is the truth: 15 archives
+had covers/colour pages that a name sort scrambled (2026-09-07).
 Never touches an archive that already has ComicInfo.xml unless --force.
 """
-import io, os, re, sys, time, zipfile, datetime
+import io, os, re, sys, time, zipfile, datetime, unicodedata
 from xml.sax.saxutils import escape
 from PIL import Image
 
@@ -24,10 +28,10 @@ def nat_key(s):
 def parse_name(stem, folder):
     m = VOL_RE.match(stem)
     if not m:
-        return folder, "", stem  # e.g. 風の旅人 外伝 -> Number "", Title stem
-    series = m.group("series").strip() or folder
+        return unicodedata.normalize("NFC", folder), "", unicodedata.normalize("NFC", stem)  # 外伝: no Number
+    series = unicodedata.normalize("NFC", m.group("series").strip() or folder)
     num = m.group("num").translate(FW2ASCII).lstrip("0") or "0"
-    return series, num + m.group("sfx"), stem
+    return series, num + m.group("sfx"), unicodedata.normalize("NFC", stem)
 
 def build_xml(series, number, title, pages, page_dims):
     volume = re.sub(r"\D", "", number)
@@ -65,9 +69,10 @@ def process(path, dry, force, log):
     images = [n for n in names if n.lower().endswith(IMG) and not n.startswith("__MACOSX") and not os.path.basename(n).startswith(".")]
     if not images:
         zin.close(); return "ABORT no images"
-    ordered = sorted(images, key=nat_key)
-    if ordered != images:
-        log(f"  WARN entry order != natural sort; ComicInfo indices follow natural sort: {rel}")
+    ordered = images                      # entry order IS the reading order
+    if sorted(images, key=nat_key) != images:
+        log(f"  note: name sort disagreed with entry order; renaming fixes it: {rel}")
+    newname = {n: f"{i:04d}{os.path.splitext(n)[1].lower()}" for i, n in enumerate(ordered)}
     dims = {}
     for n in ordered:
         info = zin.getinfo(n)
@@ -85,16 +90,16 @@ def process(path, dry, force, log):
     msg = f"series={series} number={number or '-'} pages={len(ordered)} wide={wide}"
     if dry:
         zin.close(); return msg + " (dry)"
-    tmp = path + ".phase0.tmp"
-    orig = {i.filename: (i.CRC, i.file_size, i.compress_type) for i in infos}
+    # Temp lives outside the iCloud folder (same APFS volume, so os.replace is an atomic rename).
+    tmp = os.path.join(TMPDIR, os.path.basename(path) + ".phase0.tmp")
+    kept = [i for i in infos if i.filename != "ComicInfo.xml"]
+    orig = [(i.CRC, i.file_size, i.compress_type) for i in kept]
     with zipfile.ZipFile(tmp, "w") as zout:
-        for i in infos:  # exact original order, per-entry method preserved
-            zi = zipfile.ZipInfo(i.filename, date_time=i.date_time)
+        for i in kept:  # exact original order, per-entry method preserved, image names sequential
+            zi = zipfile.ZipInfo(newname.get(i.filename, i.filename), date_time=i.date_time)
             zi.compress_type = i.compress_type
             zi.external_attr = i.external_attr
             zi.flag_bits = i.flag_bits & 0x800
-            if i.filename == "ComicInfo.xml":
-                continue
             zout.writestr(zi, zin.read(i.filename))
         ci = zipfile.ZipInfo("ComicInfo.xml", date_time=time.localtime()[:6])
         ci.compress_type = zipfile.ZIP_STORED
@@ -105,13 +110,15 @@ def process(path, dry, force, log):
     try:
         zc = zipfile.ZipFile(tmp)
         new = zc.infolist()
-        expect = [n for n in names if n != "ComicInfo.xml"] + ["ComicInfo.xml"]
+        expect = [newname.get(i.filename, i.filename) for i in kept] + ["ComicInfo.xml"]
         if [i.filename for i in new] != expect:
             raise RuntimeError("order mismatch")
-        for i in new[:-1]:
-            crc, size, method = orig[i.filename]
+        for i, (crc, size, method) in zip(new[:-1], orig):
             if i.CRC != crc or i.file_size != size or i.compress_type != method:
-                raise RuntimeError(f"entry mismatch {i.filename}")
+                raise RuntimeError(f"entry mismatch at {i.filename}")
+        imgs = [i.filename for i in new if i.filename.lower().endswith(IMG)]
+        if sorted(imgs, key=nat_key) != imgs:
+            raise RuntimeError("renamed entries do not sort in entry order")
         if zc.testzip() is not None:
             raise RuntimeError("testzip failed")
         import xml.etree.ElementTree as ET
@@ -128,6 +135,8 @@ if __name__ == "__main__":
     dry = "--dry" in sys.argv; force = "--force" in sys.argv
     limit = int(sys.argv[sys.argv.index("--limit") + 1]) if "--limit" in sys.argv else None
     report = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phase0_report.log")
+    TMPDIR = os.environ.get("PHASE0_TMP") or os.path.join(os.path.expanduser("~/Manga/tools"), ".phase0tmp")
+    os.makedirs(TMPDIR, exist_ok=True)
     def log(m):
         print(m, flush=True)
         with open(report, "a") as f: f.write(m + "\n")
