@@ -22,7 +22,9 @@ public final class CloudLibraryMonitor: LibraryFolderMonitor {
         query.notificationBatchingInterval = 0.25
     }
 
-    public var updates: AsyncStream<[CloudFileItem]> { bus.stream() }
+    /// Replays the current snapshot, then live changes. Subscribing and
+    /// sending both happen on the main actor, so nothing slips between.
+    public var updates: AsyncStream<[CloudFileItem]> { bus.stream(replaying: items) }
 
     public func start() {
         guard observers.isEmpty else { return }
@@ -99,7 +101,9 @@ public final class LocalFolderMonitor: LibraryFolderMonitor {
 
     public init(rootURL: URL) { self.rootURL = rootURL }
 
-    public var updates: AsyncStream<[CloudFileItem]> { bus.stream() }
+    /// Replays the current snapshot, then live changes. Subscribing and
+    /// sending both happen on the main actor, so nothing slips between.
+    public var updates: AsyncStream<[CloudFileItem]> { bus.stream(replaying: items) }
 
     public func start() {
         try? FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)

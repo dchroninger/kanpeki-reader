@@ -23,10 +23,12 @@ struct ContentView: View {
             }
             .safeAreaInset(edge: .bottom) { StatusChip() }
         } detail: {
-            if let s = selectedSeries, let vols = model.volumes[s] {
-                VolumeGridView(series: s, volumes: vols)
-            } else {
-                ContentUnavailableView("Select a series", systemImage: "books.vertical")
+            NavigationStack {
+                if let s = selectedSeries, let vols = model.volumes[s] {
+                    VolumeGridView(series: s, volumes: vols)
+                } else {
+                    ContentUnavailableView("Select a series", systemImage: "books.vertical")
+                }
             }
         }
         .sheet(isPresented: $showStorage) { StorageView() }

@@ -24,7 +24,7 @@ enum SampleLibrary {
             <Pages><Page Image="0" Type="FrontCover"/>\(vol == 2 ? "<Page Image=\"5\" DoublePage=\"true\"/>" : "")</Pages></ComicInfo>
             """
             entries.append(.init(name: ComicInfo.entryName, data: Data(ci.utf8)))
-            let url = dir.appending(path: "サンプル０\(vol).cbz")
+            let url = dir.appending(path: "サンプル０\(vol == 1 ? "１" : "２").cbz")
             try ZipWriter.stored(entries).write(to: url, options: .atomic)
         }
     }
@@ -41,6 +41,7 @@ enum SampleLibrary {
         }.frame(width: w, height: h)
         let r = ImageRenderer(content: view)
         r.scale = 1
+        r.isOpaque = true
         guard let cg = r.cgImage else { throw CocoaError(.fileWriteUnknown) }
         let out = NSMutableData()
         guard let dst = CGImageDestinationCreateWithData(out, UTType.jpeg.identifier as CFString, 1, nil) else { throw CocoaError(.fileWriteUnknown) }

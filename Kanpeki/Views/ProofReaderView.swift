@@ -70,10 +70,13 @@ struct ProofReaderView: View {
                 Button { step(volume.rightToLeft ? 1 : -1) } label: { Image(systemName: "chevron.left").frame(width: 28) }
                     .buttonStyle(.glass).disabled(!ready)
                 VStack(spacing: 4) {
-                    Slider(value: Binding(get: { Double(page) }, set: { page = Int($0.rounded()) }), in: 0...Double(max(pageCount - 1, 0)), step: 1) { _ in
-                        Task { await load(); scheduleSave() }
+                    if ready, pageCount > 1 {
+                        Slider(value: Binding(get: { Double(page) }, set: { page = Int($0.rounded()) }), in: 0...Double(pageCount - 1), step: 1) { editing in
+                            if !editing { Task { await load(); scheduleSave() } }
+                        }
+                    } else {
+                        Slider(value: .constant(0), in: 0...1).disabled(true)
                     }
-                    .disabled(!ready)
                     Text(ready ? "\(page + 1) / \(pageCount)" : "—").font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
                 }
                 Button { step(volume.rightToLeft ? -1 : 1) } label: { Image(systemName: "chevron.right").frame(width: 28) }
