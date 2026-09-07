@@ -41,6 +41,8 @@ final class AppModel {
     private(set) var indexPublished = 0
     private(set) var indexApplied = 0
     private var coverTask: Task<Void, Never>?
+    private var publishTask: Task<Void, Never>?
+    private var publishAgain = false
 
     let container: ModelContainer
     let scanner: LibraryScanner
@@ -118,17 +120,27 @@ final class AppModel {
         await applyIndex()
         await refreshLists()
         await enforceCap()
-        await publishIndex()
+        publishIndex()
     }
 
-    /// Share what this device derived with the others.
-    func publishIndex() async {
-        do {
-            let entries = try await scanner.exportIndex()
-            guard !entries.isEmpty else { return }
-            try await sync.publishVolumeIndex(entries)
-            indexPublished = entries.count
-        } catch { syncError = "Index publish: \(error.localizedDescription)" }
+    /// Share what this device derived with the others. Runs in its own task
+    /// so a folder snapshot arriving mid-publish (iCloud upload progress
+    /// fires them constantly) cannot cancel it; a request during a publish
+    /// queues exactly one more.
+    func publishIndex() {
+        if publishTask != nil { publishAgain = true; return }
+        publishTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let entries = try await scanner.exportIndex()
+                if !entries.isEmpty {
+                    try await sync.publishVolumeIndex(entries)
+                    indexPublished = entries.count
+                }
+            } catch { syncError = "Index publish: \(error.localizedDescription)" }
+            publishTask = nil
+            if publishAgain { publishAgain = false; publishIndex() }
+        }
     }
 
     /// Take what other devices derived for files this one only sees as placeholders.
@@ -148,6 +160,8 @@ final class AppModel {
             var v: [String: [VolumeRef]] = [:]
             for sr in s { v[sr.name] = try await source.listVolumes(series: sr.name) }
             series = s; volumes = v
+            let live = Set(v.values.flatMap { $0 }.map(\.id))
+            covers = covers.filter { live.contains($0.key) }
             prefetchCovers()
         } catch { startupError = error.localizedDescription }
     }

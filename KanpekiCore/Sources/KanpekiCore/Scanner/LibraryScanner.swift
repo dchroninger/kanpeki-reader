@@ -66,16 +66,17 @@ public actor LibraryScanner {
         }
     }
 
-    /// Fill rows this device could not scan (cloud placeholders) from what
-    /// another device published. Rows scanned locally are left alone.
+    /// Fill or refresh rows this device has not scanned itself (cloud
+    /// placeholders, identified by `scannedAt == nil`) from what another
+    /// device published. Locally scanned rows are the local truth.
     @discardableResult
     public func apply(index: [String: VolumeIndexEntry]) throws -> Int {
         var n = 0
-        for r in try modelContext.fetch(FetchDescriptor<VolumeRecord>()) where !r.isScanned {
-            guard let e = index[r.relativePath] else { continue }
+        for r in try modelContext.fetch(FetchDescriptor<VolumeRecord>()) where r.scannedAt == nil {
+            guard let e = index[r.relativePath], r.contentID != e.contentID else { continue }
             r.contentID = e.contentID; r.series = e.series; r.number = e.number; r.title = e.title
-            r.pageCount = e.pageCount; r.rightToLeft = e.rightToLeft
-            if r.coverThumbnail == nil { r.coverThumbnail = e.coverJPEG }
+            r.pageCount = e.pageCount; r.rightToLeft = e.rightToLeft; r.fileSize = e.fileSize
+            r.coverThumbnail = e.coverJPEG ?? r.coverThumbnail
             n += 1
         }
         if n > 0 { try modelContext.save() }
