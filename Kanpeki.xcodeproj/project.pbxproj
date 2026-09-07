@@ -7,19 +7,31 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		385382A80E9F7DA43AFD6D51 /* VolumeGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E61D99EB62F33C3C05C3F55B /* VolumeGridView.swift */; };
 		45C7B125D5EA426C96DD42A6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7C826C6CF2A7467D077F1BBD /* Assets.xcassets */; };
+		4D430CFF7060E6A58CB2CCBF /* SampleLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD5DDB053BB45E8763EAB9F /* SampleLibrary.swift */; };
 		8A0E28A9595239713E30AF64 /* KanpekiCore in Frameworks */ = {isa = PBXBuildFile; productRef = D90CB368C4D558944148AFE0 /* KanpekiCore */; };
+		90547C08D5D914BAA12E3A91 /* PageDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA6C456DEDCA5ABE9842AF76 /* PageDecoder.swift */; };
+		9EC5B9DFE2C4534DED97A442 /* ProofReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874248FAD5C8C955DE2BBCB3 /* ProofReaderView.swift */; };
 		E89D4023892886A70D54790A /* KanpekiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100D07D2181DCF5535E4356C /* KanpekiApp.swift */; };
+		F44793F8A1EE524E745FD62B /* StorageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D7B7E0725160692623A5C97 /* StorageView.swift */; };
 		F48721C33537D3139CD0474C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727B8041FA24EC78FBA942FB /* ContentView.swift */; };
+		FB9AD5D1088169E101B7AD53 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005306B262003E1ECBA7C90C /* AppModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		005306B262003E1ECBA7C90C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		100D07D2181DCF5535E4356C /* KanpekiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanpekiApp.swift; sourceTree = "<group>"; };
 		2DB7E7DECA42FEF33963D2F2 /* KanpekiCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = KanpekiCore; path = KanpekiCore; sourceTree = SOURCE_ROOT; };
+		2FD5DDB053BB45E8763EAB9F /* SampleLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleLibrary.swift; sourceTree = "<group>"; };
+		4D7B7E0725160692623A5C97 /* StorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageView.swift; sourceTree = "<group>"; };
 		727B8041FA24EC78FBA942FB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7C5914C070D5884E47EB6210 /* Kanpeki.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Kanpeki.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C826C6CF2A7467D077F1BBD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		874248FAD5C8C955DE2BBCB3 /* ProofReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofReaderView.swift; sourceTree = "<group>"; };
+		AA6C456DEDCA5ABE9842AF76 /* PageDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageDecoder.swift; sourceTree = "<group>"; };
 		B7C1F411619E66A1EFAB3F00 /* Kanpeki.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Kanpeki.entitlements; sourceTree = "<group>"; };
+		E61D99EB62F33C3C05C3F55B /* VolumeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeGridView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,6 +77,9 @@
 			isa = PBXGroup;
 			children = (
 				727B8041FA24EC78FBA942FB /* ContentView.swift */,
+				874248FAD5C8C955DE2BBCB3 /* ProofReaderView.swift */,
+				4D7B7E0725160692623A5C97 /* StorageView.swift */,
+				E61D99EB62F33C3C05C3F55B /* VolumeGridView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -81,7 +96,10 @@
 		D6BF485261209C76BB234BF5 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				005306B262003E1ECBA7C90C /* AppModel.swift */,
 				100D07D2181DCF5535E4356C /* KanpekiApp.swift */,
+				AA6C456DEDCA5ABE9842AF76 /* PageDecoder.swift */,
+				2FD5DDB053BB45E8763EAB9F /* SampleLibrary.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -170,8 +188,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FB9AD5D1088169E101B7AD53 /* AppModel.swift in Sources */,
 				F48721C33537D3139CD0474C /* ContentView.swift in Sources */,
 				E89D4023892886A70D54790A /* KanpekiApp.swift in Sources */,
+				90547C08D5D914BAA12E3A91 /* PageDecoder.swift in Sources */,
+				9EC5B9DFE2C4534DED97A442 /* ProofReaderView.swift in Sources */,
+				4D430CFF7060E6A58CB2CCBF /* SampleLibrary.swift in Sources */,
+				F44793F8A1EE524E745FD62B /* StorageView.swift in Sources */,
+				385382A80E9F7DA43AFD6D51 /* VolumeGridView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

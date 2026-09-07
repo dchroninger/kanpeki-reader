@@ -27,6 +27,14 @@ targets:
       - package: KanpekiCore
     entitlements:
       path: Kanpeki/Resources/Kanpeki.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.dchroninger.kanpeki]
+        com.apple.developer.icloud-services: [CloudDocuments, CloudKit]
+        com.apple.developer.ubiquity-container-identifiers: [iCloud.com.dchroninger.kanpeki]
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)$(CFBundleIdentifier)
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.files.user-selected.read-only: true
     info:
       path: Kanpeki/Resources/Info.plist
       properties:
