@@ -12,14 +12,14 @@ import os
 public actor CloudKitSyncStore: SyncStore {
     public static let recordType = "ReadingProgress"
     public static let indexRecordType = "VolumeIndex"
-    private var index: [String: VolumeIndexEntry] = [:]
+    private var index: [String: VolumeIndexEntry] = [:] { didSet { persist(index, "index") } }
     private let container: CKContainer
     private let db: CKDatabase
     private let zoneID = CKRecordZone.ID(zoneName: "KanpekiProgress", ownerName: CKCurrentUserDefaultName)
     private let defaults: UserDefaults
     private let tokenKey = "KanpekiCKChangeToken"
     private let zoneKey = "KanpekiCKZoneCreated"
-    private var cache: [String: ReadingProgress] = [:]
+    private var cache: [String: ReadingProgress] = [:] { didSet { persist(cache, "positions") } }
     private var dirty: Set<String> = []
     private let changes = Broadcaster<SyncChange>()
     private let log = Logger(subsystem: "com.dchroninger.kanpeki", category: "cloudkit")
@@ -31,6 +31,26 @@ public actor CloudKitSyncStore: SyncStore {
         container = CKContainer(identifier: containerIdentifier)
         db = container.privateCloudDatabase
         self.defaults = defaults
+        // Change tokens only replay what changed since last time; what we
+        // already pulled must survive a relaunch on disk.
+        cache = Self.load("positions") ?? [:]
+        index = Self.load("index") ?? [:]
+    }
+
+    private static var stateDir: URL {
+        let d = ((try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+                 ?? FileManager.default.temporaryDirectory).appending(path: "Kanpeki/cloudkit", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }
+    private nonisolated func persist<T: Encodable & Sendable>(_ v: T, _ name: String) {
+        Task.detached(priority: .utility) {
+            if let d = try? JSONEncoder().encode(v) { try? d.write(to: Self.stateDir.appending(path: name + ".json"), options: .atomic) }
+        }
+    }
+    private static func load<T: Decodable>(_ name: String) -> T? {
+        guard let d = try? Data(contentsOf: stateDir.appending(path: name + ".json")) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: d)
     }
 
     public enum AccountState: String, Sendable { case available, noAccount, restricted, couldNotDetermine, temporarilyUnavailable }
