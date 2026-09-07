@@ -248,7 +248,8 @@ Prove the plumbing before building a product on it.
 1. Xcode project, iOS + macOS targets, CloudKit + iCloud Documents
    entitlements
 2. Ubiquity container configured and visible in Files with the app icon
-3. Move the library in; enumerate it with `NSMetadataQuery`
+3. Enumerate the container with `NSMetadataQuery` (library move is a
+   separate user action — see section 10)
 4. On-demand download with progress UI; LRU eviction under a byte cap
 5. ZIP central-directory reader; list pages without extracting
 6. `CloudKitSyncStore` behind `SyncStore`: write a position on one device,
@@ -270,12 +271,27 @@ client must download a whole 50-100 MB volume before page 1.
 
 ## 10. Open questions
 
-- OPEN: minimum OS. iOS 17 vs 18 — 18 simplifies SwiftData but cuts
-  devices.
-- OPEN: macOS as a native target vs Catalyst vs iPad-on-Mac.
-- OPEN: ZIP reader — hand-rolled (~200 lines, optimal for the STORED fast
-  path) vs ZIPFoundation (handles edge cases, adds a dependency).
-- OPEN: does the app write `ComicInfo.xml` for imported archives lacking
-  it, or keep imports read-only?
-- OPEN: local cover thumbnail cache location and eviction — separate
-  budget from page cache?
+Resolved 2026-09-07:
+
+- **Minimum OS: iOS 26 / macOS 26.** Drops only 2018 iPhones (XS/XR) and
+  iPad 7th gen. iOS 27 ships Sept 2026, so by Phase 2 this is the usual
+  current+previous policy. Buys unconditional Liquid Glass and stable
+  SwiftData with no `#available` forks.
+- **macOS: native SwiftUI target**, not Catalyst, not iPad-on-Mac. Same
+  code; AppKit host; ubiquity + `NSMetadataQuery` behave identically.
+- **ZIP reader: hand-rolled.** Central-directory parser, STORED = mmap
+  subrange, DEFLATE via `Compression` (zlib raw). No dependency.
+  Tested against the 7 DEFLATE archives in LIBRARY.md.
+- **Phase 0 runs before the scanner**, in place, order-preserving,
+  verified per archive before atomic replace. Original compression method
+  per entry is preserved so LIBRARY.md's STORED/DEFLATE facts stay true.
+
+Still OPEN:
+
+- Does the app write `ComicInfo.xml` for imported archives lacking it, or
+  keep imports read-only?
+- Local cover thumbnail cache location and eviction — separate budget
+  from page cache?
+- Moving the existing library from `com~apple~CloudDocs/Manga` into the
+  app container is a user action (10 GB re-index); Phase 1 is proven with
+  files the user drops in, then the move happens once.
