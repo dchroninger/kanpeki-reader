@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# SPM
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+
+# CocoaPods / Carthage (if ever)
+Pods/
+Carthage/Build/
+
+# Secrets — never commit signing or CloudKit config
+*.mobileprovision
+*.p12
+*.cer
+Secrets.xcconfig
+
+# Never commit library content
+*.cbz
+*.cbr
