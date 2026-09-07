@@ -32,11 +32,16 @@ struct ProofReaderView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 if !images.isEmpty {
+                    // Pages share one height and butt together with no gutter,
+                    // so a spread split across two files reads as one image.
+                    let ordered = volume.rightToLeft ? images.reversed() : images
+                    let aspects = ordered.map { CGFloat($0.image.width) / CGFloat($0.image.height) }
+                    let h = min(geo.size.height, geo.size.width / aspects.reduce(0, +))
                     HStack(spacing: 0) {
-                        ForEach(volume.rightToLeft ? images.reversed() : images, id: \.page) { item in
+                        ForEach(Array(zip(ordered, aspects)), id: \.0.page) { item, a in
                             Image(item.image, scale: 1, label: Text("Page \(item.page + 1)"))
-                                .resizable().aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .resizable()
+                                .frame(width: a * h, height: h)
                         }
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
