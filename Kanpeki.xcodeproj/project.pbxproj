@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0787FF1AA04AC35A497A5A61 /* PageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E55B26826B0DF39B36B97AE /* PageProvider.swift */; };
+		1349868F6D9B747C0B8416E2 /* PagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A85419C21E6C73764D15960 /* PagerView.swift */; };
 		385382A80E9F7DA43AFD6D51 /* VolumeGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E61D99EB62F33C3C05C3F55B /* VolumeGridView.swift */; };
 		45C7B125D5EA426C96DD42A6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7C826C6CF2A7467D077F1BBD /* Assets.xcassets */; };
 		4D430CFF7060E6A58CB2CCBF /* SampleLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD5DDB053BB45E8763EAB9F /* SampleLibrary.swift */; };
@@ -22,7 +24,9 @@
 /* Begin PBXFileReference section */
 		005306B262003E1ECBA7C90C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		100D07D2181DCF5535E4356C /* KanpekiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanpekiApp.swift; sourceTree = "<group>"; };
+		2A85419C21E6C73764D15960 /* PagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagerView.swift; sourceTree = "<group>"; };
 		2DB7E7DECA42FEF33963D2F2 /* KanpekiCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = KanpekiCore; path = KanpekiCore; sourceTree = SOURCE_ROOT; };
+		2E55B26826B0DF39B36B97AE /* PageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageProvider.swift; sourceTree = "<group>"; };
 		2FD5DDB053BB45E8763EAB9F /* SampleLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleLibrary.swift; sourceTree = "<group>"; };
 		4D7B7E0725160692623A5C97 /* StorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageView.swift; sourceTree = "<group>"; };
 		727B8041FA24EC78FBA942FB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -67,6 +71,7 @@
 			isa = PBXGroup;
 			children = (
 				D6BF485261209C76BB234BF5 /* App */,
+				FD6B91D97F9C330676860ECA /* Reader */,
 				21BB803F665C670DD12DC80A /* Resources */,
 				43B0D7AE189FCAB98DA73A61 /* Views */,
 			);
@@ -110,6 +115,15 @@
 				7C5914C070D5884E47EB6210 /* Kanpeki.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		FD6B91D97F9C330676860ECA /* Reader */ = {
+			isa = PBXGroup;
+			children = (
+				2E55B26826B0DF39B36B97AE /* PageProvider.swift */,
+				2A85419C21E6C73764D15960 /* PagerView.swift */,
+			);
+			path = Reader;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -192,6 +206,8 @@
 				F48721C33537D3139CD0474C /* ContentView.swift in Sources */,
 				E89D4023892886A70D54790A /* KanpekiApp.swift in Sources */,
 				90547C08D5D914BAA12E3A91 /* PageDecoder.swift in Sources */,
+				0787FF1AA04AC35A497A5A61 /* PageProvider.swift in Sources */,
+				1349868F6D9B747C0B8416E2 /* PagerView.swift in Sources */,
 				9EC5B9DFE2C4534DED97A442 /* ProofReaderView.swift in Sources */,
 				4D430CFF7060E6A58CB2CCBF /* SampleLibrary.swift in Sources */,
 				F44793F8A1EE524E745FD62B /* StorageView.swift in Sources */,
