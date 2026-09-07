@@ -30,4 +30,9 @@ public protocol SyncStore: Sendable {
     /// Pull remote changes now. Emits into `observeChanges()`.
     func refresh() async throws
     func observeChanges() -> AsyncStream<SyncChange>
+
+    /// Library index: derived metadata + cover per archive, keyed by
+    /// relative path. Published by whichever device has the bytes.
+    func publishVolumeIndex(_ entries: [VolumeIndexEntry]) async throws
+    func volumeIndex() async throws -> [String: VolumeIndexEntry]
 }

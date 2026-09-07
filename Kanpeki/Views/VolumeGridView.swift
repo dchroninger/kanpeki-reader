@@ -30,13 +30,14 @@ struct VolumeCard: View {
     @Environment(AppModel.self) private var model
     let volume: VolumeRef
     @State private var cover: CGImage?
+    private var image: CGImage? { model.covers[volume.id] ?? cover }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .bottomTrailing) {
                 Group {
-                    if let cover {
-                        Image(cover, scale: 1, label: Text(volume.title)).resizable().aspectRatio(contentMode: .fill)
+                    if let image {
+                        Image(image, scale: 1, label: Text(volume.title)).resizable().aspectRatio(contentMode: .fill)
                     } else {
                         Rectangle().fill(.quaternary).overlay { Image(systemName: "book.closed").font(.largeTitle).foregroundStyle(.secondary) }
                     }
@@ -57,7 +58,8 @@ struct VolumeCard: View {
             }.font(.caption).foregroundStyle(.secondary)
         }
         .task(id: volume.id) {
-            guard let src = model.source, let d = try? await src.coverThumbnail(volume: volume.id) else { return }
+            guard model.covers[volume.id] == nil, let src = model.source,
+                  let d = try? await src.coverThumbnail(volume: volume.id) else { return }
             cover = PageDecoder.decode(d, maxPixel: 400)
         }
     }

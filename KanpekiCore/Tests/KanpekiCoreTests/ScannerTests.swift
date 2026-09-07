@@ -121,3 +121,35 @@ private func makeLibrary() throws -> (URL, [CloudFileItem]) {
         _ = await dm.enforceCap([a, b, c])
     }
 }
+
+@Suite struct VolumeIndexTests {
+    @Test func indexUpgradesProvisionalRows() async throws {
+        // Device A has the bytes and scans them.
+        let (root, items) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let a = LibraryScanner(modelContainer: try LibraryStore.makeContainer(inMemory: true))
+        _ = try await a.scan(items)
+        let store = LocalSyncStore(defaults: UserDefaults(suiteName: "idx-\(UUID())")!, key: "idx-\(UUID())")
+        let exported = try await a.exportIndex()
+        #expect(exported.count == 3 && exported.allSatisfy { $0.coverJPEG != nil })
+        try await store.publishVolumeIndex(exported)
+
+        // Device B only sees cloud placeholders.
+        let remote = items.map { CloudFileItem(url: $0.url, relativePath: $0.relativePath, name: $0.name, size: $0.size, modified: nil, download: .notDownloaded) }
+        let bContainer = try LibraryStore.makeContainer(inMemory: true)
+        let b = LibraryScanner(modelContainer: bContainer)
+        let s = try await b.scan(remote)
+        #expect(s.provisional == 3)
+        let applied = try await b.apply(index: try await store.volumeIndex())
+        #expect(applied == 3)
+        let src = CloudLibrarySource(rootURL: root, isUbiquitous: false, container: bContainer, downloads: DownloadManager(defaults: UserDefaults(suiteName: "t-\(UUID())")!))
+        await src.update(items: remote)
+        let v = try await src.listVolumes(series: "風の旅人")[0]
+        #expect(!v.id.rawValue.hasPrefix("path:"))                 // real content ID before any download
+        #expect(v.pageCount == 6 && v.availability == .remote(bytes: v.byteSize))
+        #expect(try await src.coverThumbnail(volume: v.id) != nil)
+        #expect(Set(exported.map(\.contentID)).contains(v.id.rawValue))
+        // Applying twice is idempotent; scanned rows untouched.
+        #expect(try await b.apply(index: try await store.volumeIndex()) == 0)
+    }
+}

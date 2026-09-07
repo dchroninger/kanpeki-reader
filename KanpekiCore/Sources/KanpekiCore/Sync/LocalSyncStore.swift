@@ -29,5 +29,24 @@ public actor LocalSyncStore: SyncStore {
 
     public func refresh() async throws {}
 
+    // MARK: Volume index (JSON file next to the app's data)
+
+    private var indexURL: URL {
+        let dir = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        return dir.appending(path: "Kanpeki-\(key)-index.json")
+    }
+
+    public func publishVolumeIndex(_ entries: [VolumeIndexEntry]) async throws {
+        var idx = try await volumeIndex()
+        for e in entries { idx[e.relativePath] = e }
+        try JSONEncoder().encode(idx).write(to: indexURL, options: .atomic)
+    }
+
+    public func volumeIndex() async throws -> [String: VolumeIndexEntry] {
+        guard let d = try? Data(contentsOf: indexURL) else { return [:] }
+        return (try? JSONDecoder().decode([String: VolumeIndexEntry].self, from: d)) ?? [:]
+    }
+
     public nonisolated func observeChanges() -> AsyncStream<SyncChange> { changes.stream() }
 }

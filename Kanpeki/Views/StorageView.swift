@@ -48,6 +48,8 @@ struct StorageView: View {
                     if let t = model.lastSync { LabeledContent("Last refresh", value: t.formatted(date: .omitted, time: .standard)) }
                     if let e = model.syncError { Text(e).foregroundStyle(.red).font(.caption) }
                     LabeledContent("Positions known", value: "\(model.progress.count)")
+                    LabeledContent("Library index", value: "\(model.indexPublished) published · \(model.indexApplied) applied here")
+                    LabeledContent("Covers in memory", value: "\(model.covers.count)")
                     Button("Refresh now", systemImage: "arrow.clockwise") { Task { await model.refreshSync() } }
                 }
                 if let e = model.startupError {

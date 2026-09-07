@@ -56,6 +56,32 @@ public actor LibraryScanner {
         return summary
     }
 
+    /// Everything this device has actually scanned, for publishing.
+    public func exportIndex() throws -> [VolumeIndexEntry] {
+        try modelContext.fetch(FetchDescriptor<VolumeRecord>()).compactMap { r in
+            guard let cid = r.contentID else { return nil }
+            return VolumeIndexEntry(relativePath: r.relativePath, contentID: cid, series: r.series, number: r.number,
+                                    title: r.title, pageCount: r.pageCount, rightToLeft: r.rightToLeft,
+                                    fileSize: r.fileSize, coverJPEG: r.coverThumbnail, updatedAt: r.scannedAt ?? .now)
+        }
+    }
+
+    /// Fill rows this device could not scan (cloud placeholders) from what
+    /// another device published. Rows scanned locally are left alone.
+    @discardableResult
+    public func apply(index: [String: VolumeIndexEntry]) throws -> Int {
+        var n = 0
+        for r in try modelContext.fetch(FetchDescriptor<VolumeRecord>()) where !r.isScanned {
+            guard let e = index[r.relativePath] else { continue }
+            r.contentID = e.contentID; r.series = e.series; r.number = e.number; r.title = e.title
+            r.pageCount = e.pageCount; r.rightToLeft = e.rightToLeft
+            if r.coverThumbnail == nil { r.coverThumbnail = e.coverJPEG }
+            n += 1
+        }
+        if n > 0 { try modelContext.save() }
+        return n
+    }
+
     /// Drop every row. Used to prove the cache rebuilds from nothing.
     public func wipe() throws {
         try modelContext.delete(model: VolumeRecord.self)

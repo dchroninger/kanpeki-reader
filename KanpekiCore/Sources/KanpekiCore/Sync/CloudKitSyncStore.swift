@@ -1,5 +1,6 @@
 import Foundation
 import CloudKit
+import CryptoKit
 import os
 
 /// Reading state in the user's CloudKit **private** database. One record per
@@ -10,6 +11,8 @@ import os
 /// import CloudKit.
 public actor CloudKitSyncStore: SyncStore {
     public static let recordType = "ReadingProgress"
+    public static let indexRecordType = "VolumeIndex"
+    private var index: [String: VolumeIndexEntry] = [:]
     private let container: CKContainer
     private let db: CKDatabase
     private let zoneID = CKRecordZone.ID(zoneName: "KanpekiProgress", ownerName: CKCurrentUserDefaultName)
@@ -81,6 +84,58 @@ public actor CloudKitSyncStore: SyncStore {
 
     public nonisolated func observeChanges() -> AsyncStream<SyncChange> { changes.stream() }
 
+    // MARK: Volume index
+
+    public func volumeIndex() async throws -> [String: VolumeIndexEntry] { index }
+
+    /// Upserts index records. Covers travel as assets; 50 per request keeps
+    /// well under CloudKit's per-operation limits.
+    public func publishVolumeIndex(_ entries: [VolumeIndexEntry]) async throws {
+        try await ensureZone()
+        let todo = entries.filter { index[$0.relativePath]?.contentID != $0.contentID }
+        guard !todo.isEmpty else { return }
+        let tmp = FileManager.default.temporaryDirectory.appending(path: "kanpeki-covers-\(UUID())")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        for chunk in stride(from: 0, to: todo.count, by: 50).map({ Array(todo[$0..<min($0 + 50, todo.count)]) }) {
+            var records: [CKRecord] = []
+            for e in chunk {
+                let r = CKRecord(recordType: Self.indexRecordType, recordID: Self.indexRecordID(e.relativePath, zoneID: zoneID))
+                r["path"] = e.relativePath; r["contentID"] = e.contentID; r["series"] = e.series; r["number"] = e.number
+                r["title"] = e.title; r["pageCount"] = Int64(e.pageCount); r["rtl"] = Int64(e.rightToLeft ? 1 : 0)
+                r["fileSize"] = e.fileSize; r["updatedAt"] = e.updatedAt
+                if let jpg = e.coverJPEG {
+                    let f = tmp.appending(path: UUID().uuidString + ".jpg")
+                    try jpg.write(to: f)
+                    r["cover"] = CKAsset(fileURL: f)
+                }
+                records.append(r)
+            }
+            let result = try await db.modifyRecords(saving: records, deleting: [], savePolicy: .allKeys)
+            for (id, res) in result.saveResults {
+                if case .success = res, let e = chunk.first(where: { Self.indexRecordID($0.relativePath, zoneID: zoneID) == id }) {
+                    index[e.relativePath] = e
+                }
+            }
+        }
+    }
+
+    private static func indexRecordID(_ path: String, zoneID: CKRecordZone.ID) -> CKRecord.ID {
+        let digest = SHA256.hash(data: Data(path.utf8)).map { String(format: "%02x", $0) }.joined()
+        return CKRecord.ID(recordName: "idx-" + digest, zoneID: zoneID)
+    }
+
+    private static func indexEntry(from r: CKRecord) -> VolumeIndexEntry? {
+        guard let path = r["path"] as? String, let cid = r["contentID"] as? String else { return nil }
+        var cover: Data? = nil
+        if let a = r["cover"] as? CKAsset, let u = a.fileURL { cover = try? Data(contentsOf: u) }
+        return VolumeIndexEntry(relativePath: path, contentID: cid, series: r["series"] as? String ?? "",
+                                number: r["number"] as? String ?? "", title: r["title"] as? String ?? "",
+                                pageCount: Int(r["pageCount"] as? Int64 ?? 0), rightToLeft: (r["rtl"] as? Int64 ?? 1) == 1,
+                                fileSize: r["fileSize"] as? Int64 ?? 0, coverJPEG: cover,
+                                updatedAt: r["updatedAt"] as? Date ?? .distantPast)
+    }
+
     // MARK: Internals
 
     private func recordID(_ id: ContentID) -> CKRecord.ID { CKRecord.ID(recordName: id.rawValue, zoneID: zoneID) }
@@ -128,7 +183,12 @@ public actor CloudKitSyncStore: SyncStore {
             do {
                 let r = try await db.recordZoneChanges(inZoneWith: zoneID, since: token)
                 for (id, result) in r.modificationResultsByID {
-                    guard case .success(let m) = result, let p = Self.progress(from: m.record) else { continue }
+                    guard case .success(let m) = result else { continue }
+                    if m.record.recordType == Self.indexRecordType {
+                        if let e = Self.indexEntry(from: m.record) { index[e.relativePath] = e }
+                        continue
+                    }
+                    guard let p = Self.progress(from: m.record) else { continue }
                     let key = id.recordName
                     if dirty.contains(key), let local = cache[key], local.updatedAt >= p.updatedAt { continue }
                     if cache[key] != p {
@@ -136,7 +196,10 @@ public actor CloudKitSyncStore: SyncStore {
                         changes.send(SyncChange(id: ContentID(rawValue: key), progress: p))
                     }
                 }
-                for d in r.deletions { cache[d.recordID.recordName] = nil }
+                for d in r.deletions {
+                    cache[d.recordID.recordName] = nil
+                    if d.recordID.recordName.hasPrefix("idx-") { index = index.filter { Self.indexRecordID($0.key, zoneID: zoneID) != d.recordID } }
+                }
                 token = r.changeToken
                 saveToken(token)
                 if !r.moreComing { return }

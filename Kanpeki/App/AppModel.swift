@@ -34,6 +34,12 @@ final class AppModel {
     private(set) var lastSync: Date?
     private(set) var startupError: String?
     var isScanning: Bool { scanProgress != nil }
+    /// Decoded covers, keyed by volume. Filled at launch so the grid reads
+    /// as a library instead of a wall of placeholders.
+    private(set) var covers: [ContentID: CGImage] = [:]
+    private(set) var indexPublished = 0
+    private(set) var indexApplied = 0
+    private var coverTask: Task<Void, Never>?
 
     let container: ModelContainer
     let scanner: LibraryScanner
@@ -107,8 +113,30 @@ final class AppModel {
             scanSummary = summary
         } catch { startupError = "Scan failed: \(error.localizedDescription)" }
         scanProgress = nil
+        await applyIndex()
         await refreshLists()
         await enforceCap()
+        await publishIndex()
+    }
+
+    /// Share what this device derived with the others.
+    func publishIndex() async {
+        do {
+            let entries = try await scanner.exportIndex()
+            guard !entries.isEmpty else { return }
+            try await sync.publishVolumeIndex(entries)
+            indexPublished = entries.count
+        } catch { syncError = "Index publish: \(error.localizedDescription)" }
+    }
+
+    /// Take what other devices derived for files this one only sees as placeholders.
+    func applyIndex() async {
+        do {
+            let idx = try await sync.volumeIndex()
+            guard !idx.isEmpty else { return }
+            let n = try await scanner.apply(index: idx)
+            if n > 0 { indexApplied += n }
+        } catch { syncError = "Index apply: \(error.localizedDescription)" }
     }
 
     func refreshLists() async {
@@ -118,13 +146,34 @@ final class AppModel {
             var v: [String: [VolumeRef]] = [:]
             for sr in s { v[sr.name] = try await source.listVolumes(series: sr.name) }
             series = s; volumes = v
+            prefetchCovers()
         } catch { startupError = error.localizedDescription }
+    }
+
+    /// Decode every cover we don't have yet, off the main actor, in batches.
+    private func prefetchCovers() {
+        guard let source else { return }
+        let missing = volumes.values.flatMap { $0 }.map(\.id).filter { covers[$0] == nil }
+        guard !missing.isEmpty else { return }
+        coverTask?.cancel()
+        coverTask = Task { [weak self] in
+            for chunk in stride(from: 0, to: missing.count, by: 16).map({ Array(missing[$0..<min($0 + 16, missing.count)]) }) {
+                guard !Task.isCancelled else { return }
+                var thumbs: [(ContentID, Data)] = []
+                for id in chunk { if let d = try? await source.coverThumbnail(volume: id) { thumbs.append((id, d)) } }
+                let decoded = await Task.detached(priority: .utility) {
+                    thumbs.compactMap { id, d in PageDecoder.decode(d, maxPixel: 400).map { (id, $0) } }
+                }.value
+                guard let self, !Task.isCancelled else { return }
+                for (id, img) in decoded { self.covers[id] = img }
+            }
+        }
     }
 
     /// Prove the cache is a cache: drop everything and rebuild from the files.
     func rebuildCache() async {
         do { try await scanner.wipe() } catch { startupError = error.localizedDescription }
-        series = []; volumes = [:]
+        series = []; volumes = [:]; covers = [:]
         await rescan()
     }
 
@@ -134,6 +183,8 @@ final class AppModel {
             progress = try await sync.allProgress()
             lastSync = .now; syncError = nil
         } catch { syncError = error.localizedDescription }
+        await applyIndex()
+        await refreshLists()
     }
 
     func setProgress(page: Int, pageCount: Int, for id: ContentID) async {
