@@ -1,32 +1,45 @@
 import SwiftUI
 import KanpekiCore
 
-/// Phase 1 proof, not the reader: one page decoded at a time, paging by
-/// tap zone or swipe, and the position round-tripping through `SyncStore`.
+/// Phase 1 proof, not the reader: pages decoded on demand, paging by tap
+/// zone or swipe, and the position round-tripping through `SyncStore`.
 ///
 /// Direction follows the volume: RTL means the next page is to the left,
 /// so "tap left / swipe rightwards" advances. LTR is the mirror.
+///
+/// Landscape shows two pages. Pairing is decided at display time from the
+/// decoded geometry: a wide page (spread artwork, or every interior page of
+/// a spread-format volume) and the cover always sit alone.
 struct ProofReaderView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let volume: VolumeRef
     @State private var page = 0
     @State private var pageCount = 0
-    @State private var image: CGImage?
+    @State private var images: [(page: Int, image: CGImage)] = []
+    @State private var twoUp = false
     @State private var status = "Preparing…"
     @State private var ready = false
     @State private var remote: ReadingProgress?
     @State private var saveTask: Task<Void, Never>?
     @State private var errorText: String?
     @State private var flash: Edge?
+    @State private var chromeVisible = true
+    @State private var hideTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
                 Color.black.ignoresSafeArea()
-                if let image {
-                    Image(image, scale: 1, label: Text("Page \(page + 1)")).resizable().aspectRatio(contentMode: .fit)
-                        .frame(width: geo.size.width, height: geo.size.height)
+                if !images.isEmpty {
+                    HStack(spacing: 0) {
+                        ForEach(volume.rightToLeft ? images.reversed() : images, id: \.page) { item in
+                            Image(item.image, scale: 1, label: Text("Page \(item.page + 1)"))
+                                .resizable().aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
                 } else if let errorText {
                     ContentUnavailableView("Can't open", systemImage: "exclamationmark.triangle", description: Text(errorText))
                 } else {
@@ -46,7 +59,7 @@ struct ProofReaderView: View {
             .contentShape(Rectangle())
             .onTapGesture(coordinateSpace: .local) { pt in
                 let w = geo.size.width
-                if pt.x < w / 3 { tapped(.leading) } else if pt.x > w * 2 / 3 { tapped(.trailing) }
+                if pt.x < w / 3 { tapped(.leading) } else if pt.x > w * 2 / 3 { tapped(.trailing) } else { setChrome(!chromeVisible) }
             }
             .gesture(DragGesture(minimumDistance: 30).onEnded { g in
                 let dx = g.translation.width
@@ -54,15 +67,19 @@ struct ProofReaderView: View {
                 // Swiping rightwards pulls in the page that sits to the left.
                 dx > 0 ? tapped(.leading) : tapped(.trailing)
             })
+            .onChange(of: geo.size.width > geo.size.height, initial: true) { _, landscape in
+                twoUp = landscape
+                if ready { Task { await load() } }
+            }
         }
         .ignoresSafeArea()
-        .overlay(alignment: .top) { chrome }
-        .safeAreaInset(edge: .bottom) { hud }
+        .overlay(alignment: .top) { chrome.opacity(chromeVisible ? 1 : 0).allowsHitTesting(chromeVisible) }
+        .overlay(alignment: .bottom) { hud.opacity(chromeVisible ? 1 : 0).allowsHitTesting(chromeVisible) }
         .task { await open() }
-        .onDisappear { saveTask?.cancel(); Task { await model.source?.release(volume: volume.id) } }
+        .onDisappear { saveTask?.cancel(); hideTask?.cancel(); Task { await model.source?.release(volume: volume.id) } }
         .onChange(of: model.progress[volume.id]) { _, p in
             guard let p, p.device != DeviceName.current, ready, p.page != page else { return }
-            remote = p
+            remote = p; setChrome(true, autoHide: false)
         }
         #if os(iOS)
         .statusBarHidden(true)
@@ -73,10 +90,24 @@ struct ProofReaderView: View {
         model.volumes[volume.series]?.first { $0.id == volume.id }?.availability ?? volume.availability
     }
 
+    /// Chrome fades in fast (open, middle tap, remote-position banner) and
+    /// drifts out after 4 s. A page turn snaps it away.
+    private func setChrome(_ visible: Bool, autoHide: Bool = true, fast: Bool = false) {
+        hideTask?.cancel()
+        let duration = visible ? 0.15 : (fast ? 0.1 : 0.5)
+        withAnimation(.easeInOut(duration: duration)) { chromeVisible = visible }
+        guard visible, autoHide else { return }
+        hideTask = Task {
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.5)) { chromeVisible = false }
+        }
+    }
+
     /// Which page sits on a given side depends on reading direction.
     private func tapped(_ side: Edge) {
         let forward = volume.rightToLeft ? (side == .leading) : (side == .trailing)
-        step(forward ? 1 : -1, side: side)
+        step(forward ? max(images.count, 1) : -(twoUp ? 2 : 1), side: side)
     }
 
     private var chrome: some View {
@@ -108,24 +139,30 @@ struct ProofReaderView: View {
         VStack(spacing: 4) {
             if ready, pageCount > 1 {
                 Slider(value: Binding(get: { Double(page) }, set: { page = Int($0.rounded()) }), in: 0...Double(pageCount - 1), step: 1) { editing in
-                    if !editing { Task { await load() }; scheduleSave() }
+                    if editing { hideTask?.cancel() } else { Task { await load() }; scheduleSave(); setChrome(true) }
                 }
                 // RTL volumes read right-to-left; flip the bar so it fills the same way.
                 .scaleEffect(x: volume.rightToLeft ? -1 : 1, y: 1)
             } else {
                 Slider(value: .constant(0), in: 0...1).disabled(true)
             }
-            Text(ready ? "\(page + 1) / \(pageCount)" : "—").font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
+            Text(ready ? pageLabel : "—").font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 18).padding(.vertical, 10)
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .frame(maxWidth: 340)
         .glassEffect(.regular, in: .capsule)
-        .padding(.horizontal).padding(.bottom, 8)
+        .padding(.bottom, 20)
+    }
+
+    private var pageLabel: String {
+        images.count == 2 ? "\(page + 1)–\(page + 2) / \(pageCount)" : "\(page + 1) / \(pageCount)"
     }
 
     private func step(_ d: Int, side: Edge) {
-        let n = page + d
-        guard n >= 0, n < pageCount else { return }
+        let n = min(max(page + d, 0), pageCount - 1)
+        guard n != page else { return }
         page = n
+        setChrome(false, fast: true)
         withAnimation(.easeOut(duration: 0.12)) { flash = side }
         Task { try? await Task.sleep(for: .milliseconds(120)); withAnimation { flash = nil } }
         Task { await load() }
@@ -141,20 +178,34 @@ struct ProofReaderView: View {
             pageCount = try await source.pageCount(volume: volume.id)
             if let p = try await model.sync.progress(for: volume.id) { page = min(p.page, max(pageCount - 1, 0)); model.noteProgress(p, for: volume.id) }
             ready = true
+            setChrome(true)
             await load()
         } catch { errorText = error.localizedDescription }
     }
 
+    private func decode(_ index: Int) async throws -> CGImage? {
+        guard let source = model.source else { return nil }
+        let data = try await source.pageData(volume: volume.id, index: index)
+        #if os(iOS)
+        let px = Int(max(UIScreen.main.nativeBounds.width, UIScreen.main.nativeBounds.height))
+        #else
+        let px = 2200
+        #endif
+        return await Task.detached(priority: .userInitiated) { PageDecoder.decode(data, maxPixel: px) }.value
+    }
+
     private func load() async {
-        guard let source = model.source, pageCount > 0 else { return }
+        guard pageCount > 0 else { return }
         do {
-            let data = try await source.pageData(volume: volume.id, index: page)
-            #if os(iOS)
-            let px = Int(UIScreen.main.nativeBounds.width)
-            #else
-            let px = 2200
-            #endif
-            image = await Task.detached(priority: .userInitiated) { PageDecoder.decode(data, maxPixel: px) }.value
+            guard let first = try await decode(page) else { return }
+            var set = [(page: page, image: first)]
+            let wide = { (i: CGImage) in i.width > i.height }
+            // Cover alone; wide pages alone; otherwise pair with the following page.
+            if twoUp, page != 0, page + 1 < pageCount, !wide(first),
+               let second = try await decode(page + 1), !wide(second) {
+                set.append((page: page + 1, image: second))
+            }
+            images = set
         } catch { errorText = error.localizedDescription }
     }
 
