@@ -5,12 +5,13 @@ struct VolumeGridView: View {
     @Environment(AppModel.self) private var model
     let series: String
     let volumes: [VolumeRef]
+    @State private var reading: VolumeRef?
 
     var body: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 130, maximum: 170), spacing: 16)], spacing: 20) {
                 ForEach(volumes) { v in
-                    NavigationLink(value: v) { VolumeCard(volume: v) }
+                    Button { reading = v } label: { VolumeCard(volume: v) }
                         .buttonStyle(.plain)
                         .contextMenu {
                             if case .remote = v.availability { Button("Download", systemImage: "icloud.and.arrow.down") { model.startDownload(v) } }
@@ -21,7 +22,7 @@ struct VolumeGridView: View {
             .padding()
         }
         .navigationTitle(series)
-        .navigationDestination(for: VolumeRef.self) { ProofReaderView(volume: $0) }
+        .readerPresentation(item: $reading) { ProofReaderView(volume: $0).environment(model) }
     }
 }
 
@@ -76,5 +77,18 @@ struct AvailabilityBadge: View {
         .font(.caption.bold())
         .frame(width: 26, height: 26)
         .glassEffect(.regular, in: .circle)
+    }
+}
+
+extension View {
+    /// The reader owns the whole screen: no sidebar, no sidebar toggle, no
+    /// interactive swipe-back. Leaving it is the explicit back button.
+    @ViewBuilder
+    func readerPresentation<Item: Identifiable, Content: View>(item: Binding<Item?>, @ViewBuilder content: @escaping (Item) -> Content) -> some View {
+        #if os(iOS)
+        fullScreenCover(item: item, content: content)
+        #else
+        sheet(item: item) { content($0).frame(minWidth: 900, minHeight: 700) }
+        #endif
     }
 }
