@@ -1,0 +1,72 @@
+name: Kanpeki
+options:
+  bundleIdPrefix: com.dchroninger
+  deploymentTarget:
+    iOS: "26.0"
+    macOS: "26.0"
+  xcodeVersion: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEVELOPMENT_TEAM: L37XLKYG3P
+    CODE_SIGN_STYLE: Automatic
+packages:
+  KanpekiCore:
+    path: KanpekiCore
+targets:
+  Kanpeki:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: Kanpeki
+        excludes: ["Resources/Info.plist"]
+    dependencies:
+      - package: KanpekiCore
+    entitlements:
+      path: Kanpeki/Resources/Kanpeki.entitlements
+    info:
+      path: Kanpeki/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Kanpeki
+        CFBundleName: Kanpeki
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSMinimumSystemVersion: "26.0"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSUbiquitousContainers:
+          iCloud.com.dchroninger.kanpeki:
+            NSUbiquitousContainerIsDocumentScopePublic: true
+            NSUbiquitousContainerName: Kanpeki
+            NSUbiquitousContainerSupportedFolderLevels: Any
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dchroninger.kanpeki
+        PRODUCT_NAME: Kanpeki
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: false
+        ENABLE_PREVIEWS: true
+        SWIFT_EMIT_LOC_STRINGS: true
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.books
+        ENABLE_USER_SCRIPT_SANDBOXING: true
+        DEAD_CODE_STRIPPING: true
+        COMBINE_HIDPI_IMAGES: true
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+schemes:
+  Kanpeki:
+    build:
+      targets:
+        Kanpeki: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: KanpekiCore/KanpekiCoreTests
