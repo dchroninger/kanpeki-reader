@@ -169,17 +169,19 @@ struct AvailabilityBadge: View {
     var body: some View {
         ZStack {
             switch availability {
-            case .local:
-                // Check draws in as the ring completes, then settles to the "on device" arrow.
-                Image(systemName: justLanded ? "checkmark" : "arrow.down.circle.fill").foregroundStyle(.green)
+            case .local where justLanded:
+                // Check draws in as the ring completes; the badge then fades away entirely.
+                Image(systemName: "checkmark").foregroundStyle(.green)
                     .symbolEffect(.bounce, value: isLocal)
+            case .local:
+                EmptyView()
             case .remote where requested:
-                DownloadRing(progress: nil)                    // pending: spinning arc
+                DownloadRing(progress: nil)                    // pending: spinning arc (accent)
             case .remote:
                 Button { requested = true; onDownload() } label: { Image(systemName: "icloud.and.arrow.down").frame(width: 26, height: 26) }
                     .buttonStyle(.plain)
             case .downloading(let f):
-                DownloadRing(progress: f)                      // same ring, now filling
+                DownloadRing(progress: f, tint: .green)        // same ring, now filling, green
             case .unknown:
                 Image(systemName: "questionmark")
             }
@@ -188,14 +190,16 @@ struct AvailabilityBadge: View {
             if case .remote = new {} else { requested = false }
             if new == .local, old != .local {
                 justLanded = true
-                Task { try? await Task.sleep(for: .seconds(1.2)); withAnimation(.snappy) { justLanded = false } }
+                Task { try? await Task.sleep(for: .seconds(3)); justLanded = false }
             }
         }
         .font(.caption.bold())
         .frame(width: 26, height: 26)
         .glassEffect(.regular, in: .circle)
+        .opacity(isLocal && !justLanded ? 0 : 1)             // downloaded = no badge
         .contentTransition(.symbolEffect(.replace))
         .animation(.snappy, value: availability)
+        .animation(.easeOut(duration: 0.6), value: justLanded)
         .sensoryFeedback(.success, trigger: isLocal) { old, new in !old && new }
     }
 }
@@ -226,13 +230,15 @@ extension View {
 /// then stops at 12 o'clock and fills as bytes arrive.
 struct DownloadRing: View {
     let progress: Double?
+    var tint: Color = .accentColor
     @State private var spin = false
     var body: some View {
         ZStack {
             Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
             Circle().trim(from: 0, to: progress.map { max($0, 0.04) } ?? 0.28)
-                .stroke(Color.accentColor, style: .init(lineWidth: 2.5, lineCap: .round))
+                .stroke(tint, style: .init(lineWidth: 2.5, lineCap: .round))
                 .rotationEffect(.degrees(progress == nil ? (spin ? 270 : -90) : -90))
+                .animation(.easeOut(duration: 0.3), value: tint)
                 .animation(progress == nil ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .easeOut(duration: 0.3), value: spin)
                 .animation(.easeOut(duration: 0.3), value: progress)
         }
