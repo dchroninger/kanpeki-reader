@@ -33,3 +33,9 @@ Secrets.xcconfig
 *.cbz
 *.cbr
 tools/phase0_report.log
+tools/ml/.venv/
+tools/ml/cache/
+*.mlpackage
+*.mlmodelc
+Kanpeki/Resources/Models/
+Kanpeki/Resources/Dictionary/
