@@ -72,6 +72,9 @@ public actor CloudLibrarySource: LibrarySource {
 
     public func item(for volume: ContentID) throws -> CloudFileItem { try locate(volume).0 }
 
+    private var kept: Set<String> = []
+    public func update(kept: Set<String>) { self.kept = kept; changeStream.send(()) }
+
     public func allItems() -> [CloudFileItem] { Array(items.values) }
 
     public func release(volume: ContentID) async {
@@ -96,7 +99,8 @@ public actor CloudLibrarySource: LibrarySource {
         case nil: .unknown
         }
         return VolumeRef(id: id, series: r.series, number: r.number, title: r.title, pageCount: r.pageCount,
-                         rightToLeft: r.rightToLeft, byteSize: r.fileSize, availability: avail)
+                         rightToLeft: r.rightToLeft, byteSize: r.fileSize, availability: avail,
+                         keptOffline: kept.contains(r.relativePath))
     }
 
     private func record(for id: ContentID) throws -> VolumeRecord {

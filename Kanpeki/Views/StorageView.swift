@@ -33,6 +33,8 @@ struct StorageView: View {
                         Text("Automatic eviction is off on the Mac; iCloud Drive's \"Optimize Mac Storage\" governs local copies.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
+                    LabeledContent("Kept offline", value: "\(model.kept.count) volumes")
+                    Text("Volumes you download by tapping their cloud badge or via Select stay on the device regardless of the cap, until you remove them.").font(.caption).foregroundStyle(.secondary)
                     Button("Download everything", systemImage: "icloud.and.arrow.down") { model.downloadAll() }
                         .disabled(model.backend?.isCloud != true || model.items.allSatisfy(\.isLocal))
                     Button("Evict everything now", systemImage: "xmark.icloud", role: .destructive) { model.evictAll() }

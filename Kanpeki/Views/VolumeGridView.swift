@@ -18,6 +18,8 @@ struct VolumeGridView: View {
     let volumes: [VolumeRef]
     @State private var reading: VolumeRef?
     @Namespace private var zoom
+    @State private var selecting = false
+    @State private var selection: Set<ContentID> = []
     @AppStorage("coverSize") private var coverSizeRaw = CoverSize.large.rawValue
     private var coverSize: CoverSize { CoverSize(rawValue: coverSizeRaw) ?? .large }
 
@@ -25,7 +27,11 @@ struct VolumeGridView: View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: coverSize.column.min, maximum: coverSize.column.max), spacing: coverSize.spacing)], spacing: coverSize.spacing + 4) {
                 ForEach(volumes) { v in
-                    Button { reading = v } label: { VolumeCard(volume: v, size: coverSize) }
+                    Button {
+                        if selecting { toggle(v) } else { reading = v }
+                    } label: {
+                        VolumeCard(volume: v, size: coverSize, selecting: selecting, selected: selection.contains(v.id))
+                    }
                         .buttonStyle(PressScaleStyle())
                         .matchedTransitionSource(id: v.id, in: zoom)
                         // Covers settle into place as they scroll in.
@@ -35,6 +41,7 @@ struct VolumeGridView: View {
                         .contextMenu {
                             if case .remote = v.availability { Button("Download", systemImage: "icloud.and.arrow.down") { model.startDownload(v) } }
                             if v.availability == .local, model.backend?.isCloud == true { Button("Remove download", systemImage: "xmark.icloud") { model.evict(v) } }
+                            Button("Select", systemImage: "checkmark.circle") { selecting = true; selection = [v.id] }
                         }
                 }
             }
@@ -42,6 +49,9 @@ struct VolumeGridView: View {
         }
         .navigationTitle(series)
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(selecting ? "Done" : "Select") { withAnimation(.snappy) { selecting.toggle(); if !selecting { selection = [] } } }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Picker("Cover size", selection: $coverSizeRaw) {
@@ -51,6 +61,7 @@ struct VolumeGridView: View {
             }
         }
         .animation(.snappy(duration: 0.25), value: coverSizeRaw)
+        .safeAreaInset(edge: .bottom) { if selecting { selectionBar } }
         .readerPresentation(item: $reading) { v in
             ProofReaderView(volume: v).environment(model)
                 .navigationTransition(.zoom(sourceID: v.id, in: zoom))   // cover grows into the page
@@ -58,10 +69,41 @@ struct VolumeGridView: View {
     }
 }
 
+extension VolumeGridView {
+    private func toggle(_ v: VolumeRef) {
+        withAnimation(.snappy(duration: 0.15)) { if selection.contains(v.id) { selection.remove(v.id) } else { selection.insert(v.id) } }
+    }
+    private var chosen: [VolumeRef] { volumes.filter { selection.contains($0.id) } }
+    private var remote: [VolumeRef] { volumes.filter { if case .remote = $0.availability { true } else { false } } }
+
+    /// Glass bar for the selection: download to keep offline, or remove.
+    private var selectionBar: some View {
+        HStack(spacing: 10) {
+            Button("All remaining", systemImage: "checklist") { selection = Set(remote.map(\.id)) }
+                .buttonStyle(.glass).disabled(remote.isEmpty)
+            Spacer()
+            let toGet = chosen.filter { $0.availability != .local }
+            let toDrop = chosen.filter { $0.availability == .local }
+            if !toDrop.isEmpty, model.backend?.isCloud == true {
+                Button("Remove \(toDrop.count)", systemImage: "xmark.icloud") { model.evict(toDrop); selection = [] }.buttonStyle(.glass)
+            }
+            Button("Download \(toGet.count)", systemImage: "arrow.down.circle.fill") { model.keepOffline(toGet); selection = [] }
+                .buttonStyle(.glassProminent).disabled(toGet.isEmpty)
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .glassEffect(.regular, in: .capsule)
+        .padding(.horizontal).padding(.bottom, 6)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+}
+
 struct VolumeCard: View {
     @Environment(AppModel.self) private var model
     let volume: VolumeRef
     var size: CoverSize = .large
+    var selecting = false
+    var selected = false
     @State private var cover: CGImage?
     private var image: CGImage? { model.covers[volume.id] ?? cover }
 
@@ -76,8 +118,19 @@ struct VolumeCard: View {
                     }
                 }
                 .frame(height: size.coverHeight).clipShape(RoundedRectangle(cornerRadius: size == .small ? 8 : 12))
-                AvailabilityBadge(availability: volume.availability).padding(size == .small ? 4 : 6)
+                if selecting {
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .font(.title2).symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, selected ? Color.accentColor : Color.black.opacity(0.35))
+                        .padding(6)
+                } else {
+                    AvailabilityBadge(availability: volume.availability, kept: volume.keptOffline) {
+                        model.startDownload(volume)     // tap the cloud to fetch
+                    }
+                    .padding(size == .small ? 4 : 6)
+                }
             }
+            .overlay { if selecting && selected { RoundedRectangle(cornerRadius: 12).stroke(Color.accentColor, lineWidth: 3) } }
             Text(volume.number.isEmpty ? volume.title : "Vol. \(volume.number)").font(size == .small ? .subheadline : .headline).lineLimit(1)
             HStack(spacing: 4) {
                 if let p = model.progress[volume.id] {
@@ -100,15 +153,19 @@ struct VolumeCard: View {
 
 struct AvailabilityBadge: View {
     let availability: Availability
+    var kept = false
+    var onDownload: () -> Void = {}
     private var isLocal: Bool { availability == .local }
     var body: some View {
         ZStack {
             switch availability {
             case .local:
-                Image(systemName: "checkmark").foregroundStyle(.green)
+                // Kept-offline volumes get the solid mark; cached ones the plain check.
+                Image(systemName: kept ? "arrow.down.circle.fill" : "checkmark").foregroundStyle(.green)
                     .symbolEffect(.bounce, value: isLocal)           // one bounce when the download lands
             case .remote:
-                Image(systemName: "icloud.and.arrow.down")
+                Button(action: onDownload) { Image(systemName: "icloud.and.arrow.down").frame(width: 26, height: 26) }
+                    .buttonStyle(.plain)
             case .downloading(let f):
                 Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
                 Circle().trim(from: 0, to: max(f, 0.03)).stroke(Color.accentColor, style: .init(lineWidth: 2.5, lineCap: .round))

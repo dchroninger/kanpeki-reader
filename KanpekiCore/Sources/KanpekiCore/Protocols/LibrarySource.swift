@@ -34,12 +34,14 @@ public struct VolumeRef: Hashable, Sendable, Identifiable {
     public let rightToLeft: Bool
     public let byteSize: Int64
     public var availability: Availability
+    /// The user asked for this one to stay on the device (flight mode).
+    public var keptOffline: Bool
 
     public init(id: ContentID, series: String, number: String, title: String, pageCount: Int,
-                rightToLeft: Bool, byteSize: Int64, availability: Availability) {
+                rightToLeft: Bool, byteSize: Int64, availability: Availability, keptOffline: Bool = false) {
         self.id = id; self.series = series; self.number = number; self.title = title
         self.pageCount = pageCount; self.rightToLeft = rightToLeft
-        self.byteSize = byteSize; self.availability = availability
+        self.byteSize = byteSize; self.availability = availability; self.keptOffline = keptOffline
     }
 }
 

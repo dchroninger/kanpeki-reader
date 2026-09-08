@@ -26,6 +26,10 @@ public actor DownloadManager {
     private let defaults: UserDefaults
     private var lastAccess: [String: Date]   // relativePath -> last open
     private var pinned: [String: Int] = [:]  // relativePath -> pin count
+    /// Volumes the user asked to keep on the device (tap-to-download,
+    /// multi-select). Never evicted automatically; cleared by "Remove download".
+    private var kept: Set<String>
+    private let keptKey = "KanpekiKeptOffline"
     private let log = Logger(subsystem: "com.dchroninger.kanpeki", category: "download")
     private let accessKey = "KanpekiLastAccess"
     private let capKey = "KanpekiLocalByteCap"
@@ -37,6 +41,23 @@ public actor DownloadManager {
         if let d = defaults.data(forKey: accessKey), let m = try? JSONDecoder().decode([String: Date].self, from: d) {
             lastAccess = m
         } else { lastAccess = [:] }
+        kept = Set(defaults.stringArray(forKey: keptKey) ?? [])
+    }
+
+    public func isKept(_ item: CloudFileItem) -> Bool { kept.contains(item.relativePath) }
+    public var keptPaths: Set<String> { kept }
+
+    /// Download and keep. Safe to call on an item that is already local.
+    public func keep(_ items: [CloudFileItem]) {
+        for i in items {
+            kept.insert(i.relativePath)
+            if !i.isLocal { try? fm.startDownloadingUbiquitousItem(at: i.url) }
+        }
+        defaults.set(Array(kept), forKey: keptKey)
+    }
+
+    public func unkeep(_ item: CloudFileItem) {
+        kept.remove(item.relativePath); defaults.set(Array(kept), forKey: keptKey)
     }
 
     public var byteCap: Int64 {
@@ -101,6 +122,7 @@ public actor DownloadManager {
 
     public func evict(_ item: CloudFileItem) throws {
         guard pinned[item.relativePath] == nil else { return }
+        unkeep(item)
         try fm.evictUbiquitousItem(at: item.url)
         evictionLog.append("evicted \(item.name) (\(item.size / 1_048_576) MB)")
         log.info("evicted \(item.name, privacy: .private)")
@@ -119,7 +141,7 @@ public actor DownloadManager {
         let cap = byteCap
         var total = localBytes(items)
         guard total > cap else { return [] }
-        let candidates = items.filter { $0.isLocal && pinned[$0.relativePath] == nil }
+        let candidates = items.filter { $0.isLocal && pinned[$0.relativePath] == nil && !kept.contains($0.relativePath) }
             .sorted { (lastAccess[$0.relativePath] ?? .distantPast) < (lastAccess[$1.relativePath] ?? .distantPast) }
         var evicted: [CloudFileItem] = []
         for c in candidates where total > cap {
