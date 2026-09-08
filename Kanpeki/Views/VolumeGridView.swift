@@ -166,54 +166,65 @@ struct AvailabilityBadge: View {
     enum Phase: Equatable { case cloud, pending, downloading(Double), landed, hidden }
     @State private var phase: Phase = .hidden
 
-    /// One symbol image lives through every phase; only its name changes, so
-    /// SF Symbols' magic replace draws each transition (arrow → check).
+    /// One SF Symbol lives through every phase. Name changes ride magic
+    /// replace (shared enclosures stay, new strokes draw in); progress is
+    /// Variable Draw on the circle itself; the exit is Draw Off. Nothing here
+    /// is drawn by hand.
     private var symbolName: String {
         switch phase {
         case .cloud: "icloud.and.arrow.down"
-        case .pending, .downloading: "arrow.down"
-        case .landed: "checkmark"
-        case .hidden: "checkmark"
+        case .pending, .downloading: "circle"
+        case .landed, .hidden: "checkmark.circle"
         }
     }
-    private var ringProgress: Double? { if case .downloading(let f) = phase { f } else { nil } }
-    private var showsRing: Bool { switch phase { case .pending, .downloading: true; default: false } }
+    private var variableValue: Double {
+        switch phase {
+        case .cloud: 1
+        case .pending: 0.18                     // a short arc, pulsing, while we wait for bytes
+        case .downloading(let f): max(f, 0.04)
+        case .landed, .hidden: 1
+        }
+    }
+    private var tint: Color {
+        switch phase {
+        case .cloud: .primary
+        case .pending: .accentColor
+        case .downloading, .landed, .hidden: .green
+        }
+    }
 
     var body: some View {
-        ZStack {
-            if showsRing {
-                DownloadRing(progress: ringProgress, tint: ringProgress == nil ? .accentColor : .green)
-                    .transition(.opacity)
-            }
-            Image(systemName: symbolName)
-                .foregroundStyle(phase == .landed ? .green : .primary)
-                .font(showsRing ? .system(size: 9, weight: .bold) : .caption.bold())
-                .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp)))
-                .symbolEffect(.bounce, options: .nonRepeating, value: phase == .landed)
-        }
-        .frame(width: 26, height: 26)
-        .glassEffect(.regular, in: .circle)
-        .contentShape(Circle())
-        .onTapGesture { if phase == .cloud { withAnimation(.snappy) { phase = .pending }; onDownload() } }
-        .opacity(phase == .hidden ? 0 : 1)
-        .animation(.snappy, value: phase)
-        .onAppear { phase = Self.initialPhase(availability) }
-        .onChange(of: availability) { _, new in
-            switch (phase, new) {
-            case (.pending, .remote), (.hidden, .local), (.landed, .local): break   // nothing new
-            case (_, .downloading(let f)): withAnimation(.easeOut(duration: 0.3)) { phase = .downloading(f) }
-            case (.cloud, .local): phase = .hidden                                   // became local without us watching
-            case (_, .local):
-                withAnimation(.snappy) { phase = .landed }
-                Task {
-                    try? await Task.sleep(for: .seconds(3))
-                    withAnimation(.easeOut(duration: 0.6)) { if phase == .landed { phase = .hidden } }
+        Image(systemName: symbolName, variableValue: variableValue)
+            .symbolVariableValueMode(.draw)                                   // the ring draws with progress
+            .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp)))  // circle stays, check draws in
+            .symbolEffect(.pulse, options: .repeating, isActive: phase == .pending)
+            .symbolEffect(.bounce, options: .nonRepeating, value: phase == .landed)
+            .symbolEffect(.drawOff.byLayer, isActive: phase == .hidden)       // strokes retract on the way out
+            .foregroundStyle(tint)
+            .font(.system(size: 15, weight: .semibold))
+            .frame(width: 26, height: 26)
+            .glassEffect(.regular, in: .circle)
+            .contentShape(Circle())
+            .onTapGesture { if phase == .cloud { withAnimation(.snappy) { phase = .pending }; onDownload() } }
+            .opacity(phase == .hidden ? 0 : 1)
+            .animation(.snappy, value: phase)
+            .onAppear { phase = Self.initialPhase(availability) }
+            .onChange(of: availability) { _, new in
+                switch (phase, new) {
+                case (.pending, .remote), (.hidden, .local), (.landed, .local): break   // nothing new
+                case (_, .downloading(let f)): withAnimation(.easeOut(duration: 0.3)) { phase = .downloading(f) }
+                case (.cloud, .local): phase = .hidden                                   // became local without us watching
+                case (_, .local):
+                    withAnimation(.snappy) { phase = .landed }
+                    Task {
+                        try? await Task.sleep(for: .seconds(3))
+                        withAnimation(.easeOut(duration: 0.8)) { if phase == .landed { phase = .hidden } }
+                    }
+                case (_, .remote): withAnimation(.snappy) { phase = .cloud }
+                case (_, .unknown): phase = .hidden
                 }
-            case (_, .remote): withAnimation(.snappy) { phase = .cloud }
-            case (_, .unknown): phase = .hidden
             }
-        }
-        .sensoryFeedback(.success, trigger: phase == .landed) { _, new in new }
+            .sensoryFeedback(.success, trigger: phase == .landed) { _, new in new }
     }
 
     private static func initialPhase(_ a: Availability) -> Phase {
@@ -248,24 +259,3 @@ extension View {
     }
 }
 
-/// One ring for the whole download: spins while pending (progress nil),
-/// then stops at 12 o'clock and fills as bytes arrive.
-struct DownloadRing: View {
-    let progress: Double?
-    var tint: Color = .accentColor
-    @State private var spin = false
-    var body: some View {
-        ZStack {
-            Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
-            Circle().trim(from: 0, to: progress.map { max($0, 0.04) } ?? 0.28)
-                .stroke(tint, style: .init(lineWidth: 2.5, lineCap: .round))
-                .rotationEffect(.degrees(progress == nil ? (spin ? 270 : -90) : -90))
-                .animation(.easeOut(duration: 0.3), value: tint)
-                .animation(progress == nil ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .easeOut(duration: 0.3), value: spin)
-                .animation(.easeOut(duration: 0.3), value: progress)
-        }
-        .padding(5)
-        .onAppear { spin = true }
-        .onChange(of: progress == nil) { _, indeterminate in spin = indeterminate }
-    }
-}
