@@ -1,17 +1,30 @@
 import SwiftUI
 import KanpekiCore
 
+/// Cover size in the grid. Large is the original layout.
+enum CoverSize: String, CaseIterable, Identifiable {
+    case small, medium, large
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+    var symbol: String { switch self { case .small: "square.grid.4x3.fill"; case .medium: "square.grid.3x3.fill"; case .large: "square.grid.2x2.fill" } }
+    var column: (min: CGFloat, max: CGFloat) { switch self { case .small: (78, 100); case .medium: (104, 134); case .large: (130, 170) } }
+    var coverHeight: CGFloat { switch self { case .small: 118; case .medium: 158; case .large: 200 } }
+    var spacing: CGFloat { switch self { case .small: 10; case .medium: 14; case .large: 16 } }
+}
+
 struct VolumeGridView: View {
     @Environment(AppModel.self) private var model
     let series: String
     let volumes: [VolumeRef]
     @State private var reading: VolumeRef?
+    @AppStorage("coverSize") private var coverSizeRaw = CoverSize.large.rawValue
+    private var coverSize: CoverSize { CoverSize(rawValue: coverSizeRaw) ?? .large }
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 130, maximum: 170), spacing: 16)], spacing: 20) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: coverSize.column.min, maximum: coverSize.column.max), spacing: coverSize.spacing)], spacing: coverSize.spacing + 4) {
                 ForEach(volumes) { v in
-                    Button { reading = v } label: { VolumeCard(volume: v) }
+                    Button { reading = v } label: { VolumeCard(volume: v, size: coverSize) }
                         .buttonStyle(.plain)
                         .contextMenu {
                             if case .remote = v.availability { Button("Download", systemImage: "icloud.and.arrow.down") { model.startDownload(v) } }
@@ -22,6 +35,16 @@ struct VolumeGridView: View {
             .padding()
         }
         .navigationTitle(series)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Picker("Cover size", selection: $coverSizeRaw) {
+                        ForEach(CoverSize.allCases) { Label($0.label, systemImage: $0.symbol).tag($0.rawValue) }
+                    }
+                } label: { Label("Cover size", systemImage: coverSize.symbol) }
+            }
+        }
+        .animation(.snappy(duration: 0.25), value: coverSizeRaw)
         .readerPresentation(item: $reading) { ProofReaderView(volume: $0).environment(model) }
     }
 }
@@ -29,6 +52,7 @@ struct VolumeGridView: View {
 struct VolumeCard: View {
     @Environment(AppModel.self) private var model
     let volume: VolumeRef
+    var size: CoverSize = .large
     @State private var cover: CGImage?
     private var image: CGImage? { model.covers[volume.id] ?? cover }
 
@@ -42,10 +66,10 @@ struct VolumeCard: View {
                         Rectangle().fill(.quaternary).overlay { Image(systemName: "book.closed").font(.largeTitle).foregroundStyle(.secondary) }
                     }
                 }
-                .frame(height: 200).clipShape(RoundedRectangle(cornerRadius: 12))
-                AvailabilityBadge(availability: volume.availability).padding(6)
+                .frame(height: size.coverHeight).clipShape(RoundedRectangle(cornerRadius: size == .small ? 8 : 12))
+                AvailabilityBadge(availability: volume.availability).padding(size == .small ? 4 : 6)
             }
-            Text(volume.number.isEmpty ? volume.title : "Vol. \(volume.number)").font(.headline).lineLimit(1)
+            Text(volume.number.isEmpty ? volume.title : "Vol. \(volume.number)").font(size == .small ? .subheadline : .headline).lineLimit(1)
             HStack(spacing: 4) {
                 if let p = model.progress[volume.id] {
                     Text("p.\(p.page + 1)/\(max(p.pageCount, 1))").monospacedDigit()
@@ -55,7 +79,7 @@ struct VolumeCard: View {
                 } else {
                     Text(volume.byteSize.formatted(.byteCount(style: .file)))
                 }
-            }.font(.caption).foregroundStyle(.secondary)
+            }.font(size == .small ? .caption2 : .caption).foregroundStyle(.secondary)
         }
         .task(id: volume.id) {
             guard model.covers[volume.id] == nil, let src = model.source,
