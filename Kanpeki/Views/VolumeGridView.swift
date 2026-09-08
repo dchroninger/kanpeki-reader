@@ -160,48 +160,62 @@ struct AvailabilityBadge: View {
     let availability: Availability
     var kept = false
     var onDownload: () -> Void = {}
-    /// Tapped, but the folder monitor hasn't reported progress yet.
-    @State private var requested = false
-    /// Show the "landed" mark briefly after a download completes.
-    @State private var justLanded = false
-    private var isLocal: Bool { availability == .local }
+
+    /// The badge's own life cycle, driven by availability changes and taps.
+    /// Rendering keys off this only, so the check can never be skipped.
+    enum Phase: Equatable { case cloud, pending, downloading(Double), landed, hidden }
+    @State private var phase: Phase = .hidden
 
     var body: some View {
         ZStack {
-            switch availability {
-            case .local where justLanded:
-                // Check draws in as the ring completes; the badge then fades away entirely.
+            switch phase {
+            case .cloud:
+                Button { withAnimation(.snappy) { phase = .pending }; onDownload() } label: {
+                    Image(systemName: "icloud.and.arrow.down").frame(width: 26, height: 26)
+                }
+                .buttonStyle(.plain)
+            case .pending:
+                DownloadRing(progress: nil)                         // accent: asked, nothing moving yet
+            case .downloading(let f):
+                DownloadRing(progress: f, tint: .green)             // green: bytes flowing
+            case .landed:
                 Image(systemName: "checkmark").foregroundStyle(.green)
                     .transition(.symbolEffect(.appear.up))
-                    .symbolEffect(.bounce, options: .nonRepeating, value: justLanded)
-            case .local:
+                    .symbolEffect(.bounce, options: .nonRepeating, value: phase)
+            case .hidden:
                 EmptyView()
-            case .remote where requested:
-                DownloadRing(progress: nil)                    // pending: spinning arc (accent)
-            case .remote:
-                Button { requested = true; onDownload() } label: { Image(systemName: "icloud.and.arrow.down").frame(width: 26, height: 26) }
-                    .buttonStyle(.plain)
-            case .downloading(let f):
-                DownloadRing(progress: f, tint: .green)        // same ring, now filling, green
-            case .unknown:
-                Image(systemName: "questionmark")
-            }
-        }
-        .onChange(of: availability) { old, new in
-            if case .remote = new {} else { requested = false }
-            if new == .local, old != .local {
-                withAnimation(.snappy) { justLanded = true }
-                Task { try? await Task.sleep(for: .seconds(3)); withAnimation(.easeOut(duration: 0.6)) { justLanded = false } }
             }
         }
         .font(.caption.bold())
         .frame(width: 26, height: 26)
         .glassEffect(.regular, in: .circle)
-        .opacity(isLocal && !justLanded ? 0 : 1)             // downloaded = no badge
-        .contentTransition(.symbolEffect(.replace))
-        .animation(.snappy, value: availability)
-        .animation(.easeOut(duration: 0.6), value: justLanded)
-        .sensoryFeedback(.success, trigger: isLocal) { old, new in !old && new }
+        .opacity(phase == .hidden ? 0 : 1)
+        .onAppear { phase = Self.initialPhase(availability) }
+        .onChange(of: availability) { _, new in
+            switch (phase, new) {
+            case (.pending, .remote), (.hidden, .local), (.landed, .local): break   // nothing new
+            case (_, .downloading(let f)): withAnimation(.easeOut(duration: 0.3)) { phase = .downloading(f) }
+            case (.cloud, .local): phase = .hidden                                   // became local without us watching
+            case (_, .local):
+                withAnimation(.snappy) { phase = .landed }
+                Task {
+                    try? await Task.sleep(for: .seconds(3))
+                    withAnimation(.easeOut(duration: 0.6)) { if phase == .landed { phase = .hidden } }
+                }
+            case (_, .remote): withAnimation(.snappy) { phase = .cloud }
+            case (_, .unknown): phase = .hidden
+            }
+        }
+        .sensoryFeedback(.success, trigger: phase == .landed) { _, new in new }
+    }
+
+    private static func initialPhase(_ a: Availability) -> Phase {
+        switch a {
+        case .local: .hidden
+        case .remote: .cloud
+        case .downloading(let f): .downloading(f)
+        case .unknown: .hidden
+        }
     }
 }
 
