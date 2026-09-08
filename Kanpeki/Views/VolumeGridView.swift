@@ -172,7 +172,8 @@ struct AvailabilityBadge: View {
             case .local where justLanded:
                 // Check draws in as the ring completes; the badge then fades away entirely.
                 Image(systemName: "checkmark").foregroundStyle(.green)
-                    .symbolEffect(.bounce, value: isLocal)
+                    .transition(.symbolEffect(.appear.up))
+                    .symbolEffect(.bounce, options: .nonRepeating, value: justLanded)
             case .local:
                 EmptyView()
             case .remote where requested:
@@ -189,8 +190,8 @@ struct AvailabilityBadge: View {
         .onChange(of: availability) { old, new in
             if case .remote = new {} else { requested = false }
             if new == .local, old != .local {
-                justLanded = true
-                Task { try? await Task.sleep(for: .seconds(3)); justLanded = false }
+                withAnimation(.snappy) { justLanded = true }
+                Task { try? await Task.sleep(for: .seconds(3)); withAnimation(.easeOut(duration: 0.6)) { justLanded = false } }
             }
         }
         .font(.caption.bold())
