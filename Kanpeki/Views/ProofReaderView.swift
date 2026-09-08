@@ -267,8 +267,8 @@ struct ProofReaderView: View {
         .frame(width: geo.size.width, height: geo.size.height)
         .contentShape(Rectangle())
         .onTapGesture(coordinateSpace: .local) { pt in
-            let w = geo.size.width
-            if pt.x < w / 3 { tapped(.leading) } else if pt.x > w * 2 / 3 { tapped(.trailing) } else { setChrome(!chromeVisible) }
+            let w = geo.size.width, zone = min(w * 0.22, 90)
+            if pt.x < zone { tapped(.leading) } else if pt.x > w - zone { tapped(.trailing) } else { setChrome(!chromeVisible) }
         }
         .gesture(DragGesture(minimumDistance: 30).onEnded { g in
             let dx = g.translation.width

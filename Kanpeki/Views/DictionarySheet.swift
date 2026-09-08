@@ -73,7 +73,6 @@ struct DictionarySheet: View {
                     }
             }
         }
-        .padding(.top, showFurigana ? 6 : 0)
     }
 
     private func segment() async {
@@ -141,8 +140,9 @@ private struct WordChip: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(furigana ? (segment.best?.entry.reading ?? " ") : " ")
-                .font(.system(size: 9)).foregroundStyle(.secondary).frame(height: furigana ? 11 : 0).opacity(furigana ? 1 : 0)
+            // Height is always reserved so toggling furigana never moves the kanji.
+            Text(segment.best?.entry.reading ?? " ")
+                .font(.system(size: 9)).foregroundStyle(.secondary).frame(height: 11).opacity(furigana ? 1 : 0)
             Text(segment.text)
                 .font(.title3)
                 .foregroundStyle(segment.kind == .particle ? .secondary : .primary)

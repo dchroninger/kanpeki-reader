@@ -160,8 +160,9 @@ struct PagerView: UIViewControllerRepresentable {
             guard let view = g.view else { return }
             if parent.textMode { parent.onMiddleTap(); return }   // any tap toggles chrome in text mode
             let x = g.location(in: view).x, w = view.bounds.width
-            if x > w / 3 && x < w * 2 / 3 { parent.onMiddleTap(); return }
-            let leading = x < w / 3
+            let zone = min(w * 0.22, 90)   // narrow edges turn; the wide middle is for chrome
+            if x > zone && x < w - zone { parent.onMiddleTap(); return }
+            let leading = x < zone
             let forward = parent.rightToLeft ? leading : !leading
             turn(forward: forward)
         }
