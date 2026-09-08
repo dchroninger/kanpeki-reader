@@ -15,6 +15,7 @@ struct ContentView: View {
                             Text(s.name).lineLimit(1).truncationMode(.tail)
                             Spacer(minLength: 8)
                             Text("\(s.volumeCount)").monospacedDigit().foregroundStyle(.secondary)
+                                .contentTransition(.numericText()).animation(.default, value: s.volumeCount)
                         }
                     }
                 }
@@ -57,6 +58,7 @@ struct StatusChip: View {
                 Text(model.backend?.label ?? "Starting…")
                 Text("·").foregroundStyle(.tertiary)
                 Text(model.localBytes.formatted(.byteCount(style: .file))).monospacedDigit()
+                    .contentTransition(.numericText()).animation(.default, value: model.localBytes)
                 Text("local")
             }
             Image(systemName: model.cloudSync != nil ? "checkmark.icloud" : "xmark.icloud")

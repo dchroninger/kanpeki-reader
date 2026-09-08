@@ -17,6 +17,7 @@ struct VolumeGridView: View {
     let series: String
     let volumes: [VolumeRef]
     @State private var reading: VolumeRef?
+    @Namespace private var zoom
     @AppStorage("coverSize") private var coverSizeRaw = CoverSize.large.rawValue
     private var coverSize: CoverSize { CoverSize(rawValue: coverSizeRaw) ?? .large }
 
@@ -25,7 +26,12 @@ struct VolumeGridView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: coverSize.column.min, maximum: coverSize.column.max), spacing: coverSize.spacing)], spacing: coverSize.spacing + 4) {
                 ForEach(volumes) { v in
                     Button { reading = v } label: { VolumeCard(volume: v, size: coverSize) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(PressScaleStyle())
+                        .matchedTransitionSource(id: v.id, in: zoom)
+                        // Covers settle into place as they scroll in.
+                        .scrollTransition(.interactive(timingCurve: .easeOut)) { content, phase in
+                            content.scaleEffect(phase.isIdentity ? 1 : 0.94).opacity(phase.isIdentity ? 1 : 0.65)
+                        }
                         .contextMenu {
                             if case .remote = v.availability { Button("Download", systemImage: "icloud.and.arrow.down") { model.startDownload(v) } }
                             if v.availability == .local, model.backend?.isCloud == true { Button("Remove download", systemImage: "xmark.icloud") { model.evict(v) } }
@@ -45,7 +51,10 @@ struct VolumeGridView: View {
             }
         }
         .animation(.snappy(duration: 0.25), value: coverSizeRaw)
-        .readerPresentation(item: $reading) { ProofReaderView(volume: $0).environment(model) }
+        .readerPresentation(item: $reading) { v in
+            ProofReaderView(volume: v).environment(model)
+                .navigationTransition(.zoom(sourceID: v.id, in: zoom))   // cover grows into the page
+        }
     }
 }
 
@@ -91,18 +100,40 @@ struct VolumeCard: View {
 
 struct AvailabilityBadge: View {
     let availability: Availability
+    private var isLocal: Bool { availability == .local }
     var body: some View {
-        Group {
+        ZStack {
             switch availability {
-            case .local: Image(systemName: "checkmark").foregroundStyle(.green)
-            case .remote: Image(systemName: "icloud.and.arrow.down")
-            case .downloading(let f): ProgressView(value: f).progressViewStyle(.circular).controlSize(.small)
-            case .unknown: Image(systemName: "questionmark")
+            case .local:
+                Image(systemName: "checkmark").foregroundStyle(.green)
+                    .symbolEffect(.bounce, value: isLocal)           // one bounce when the download lands
+            case .remote:
+                Image(systemName: "icloud.and.arrow.down")
+            case .downloading(let f):
+                Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
+                Circle().trim(from: 0, to: max(f, 0.03)).stroke(Color.accentColor, style: .init(lineWidth: 2.5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 0.3), value: f)
+                    .padding(5)
+            case .unknown:
+                Image(systemName: "questionmark")
             }
         }
         .font(.caption.bold())
         .frame(width: 26, height: 26)
         .glassEffect(.regular, in: .circle)
+        .contentTransition(.symbolEffect(.replace))
+        .animation(.snappy, value: availability)
+        .sensoryFeedback(.success, trigger: isLocal) { old, new in !old && new }
+    }
+}
+
+/// Buttons that give a little under the finger.
+struct PressScaleStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .animation(.spring(duration: 0.25, bounce: 0.35), value: configuration.isPressed)
     }
 }
 

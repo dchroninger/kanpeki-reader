@@ -18,6 +18,7 @@ struct DictionarySheet: View {
     @State private var translating = true
     @State private var translationError: String?
     @State private var revealed = false
+    @State private var appeared = false
     @AppStorage("preferLanguageModel") private var preferLanguageModel = true
     @AppStorage("alwaysShowTranslation") private var alwaysShowTranslation = false
     @AppStorage("showFurigana") private var showFurigana = false
@@ -31,7 +32,11 @@ struct DictionarySheet: View {
                 VStack(alignment: .leading, spacing: 14) {
                     wordFlow
                     translationRow
-                    if let s = selected, let m = s.best { WordCard(segment: s, match: m, showMore: $showMore) }
+                    if let s = selected, let m = s.best {
+                        WordCard(segment: s, match: m, showMore: $showMore)
+                            .id(s.id)
+                            .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .opacity))
+                    }
                 }
                 .padding(.horizontal).padding(.top, 4)
             }
@@ -46,7 +51,8 @@ struct DictionarySheet: View {
                 }
             }
         }
-        .task { await segment(); await translate() }
+        .task { await segment(); appeared = true; await translate() }
+        .sensoryFeedback(.impact(weight: .light), trigger: selected?.id)
         #if canImport(Translation)
         .translationTask(fallbackConfig) { session in
             nonisolated(unsafe) let s = session
@@ -64,9 +70,12 @@ struct DictionarySheet: View {
 
     private var wordFlow: some View {
         FlowLayout(spacing: 4, lineSpacing: 6) {
-            ForEach(segments) { seg in
+            ForEach(Array(segments.enumerated()), id: \.element.id) { i, seg in
                 WordChip(segment: seg, selected: selected?.id == seg.id,
                          furigana: (showFurigana || selected?.id == seg.id) && seg.kind == .word)
+                    // Chips land one after another, left to right.
+                    .opacity(appeared ? 1 : 0).scaleEffect(appeared ? 1 : 0.7)
+                    .animation(.spring(duration: 0.35, bounce: 0.3).delay(Double(i) * 0.035), value: appeared)
                     .onTapGesture {
                         guard seg.kind != .plain, seg.best != nil else { return }
                         withAnimation(.snappy(duration: 0.2)) { selected = selected?.id == seg.id ? nil : seg; showMore = false }

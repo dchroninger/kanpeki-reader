@@ -24,6 +24,7 @@ struct ProofReaderView: View {
     @State private var chromeVisible = true
     @State private var hideTask: Task<Void, Never>?
     @State private var textMode = false
+    @Namespace private var glass
     @State private var ocrBusy = false
     @State private var ocrResult: MangaOCR.Result?
     @State private var ocrError: String?
@@ -35,13 +36,18 @@ struct ProofReaderView: View {
         ZStack {
             pageArea.ignoresSafeArea()
             // Chrome and HUD stay inside the safe area (Dynamic Island, home indicator).
-            VStack {
-                chrome.opacity(chromeVisible ? 1 : 0).allowsHitTesting(chromeVisible)
-                Spacer()
-                hud.opacity(chromeVisible ? 1 : 0).allowsHitTesting(chromeVisible)
+            GlassEffectContainer(spacing: 24) {
+                VStack {
+                    if chromeVisible { chrome.transition(.move(edge: .top).combined(with: .opacity)) }
+                    Spacer()
+                    if chromeVisible { hud.transition(.move(edge: .bottom).combined(with: .opacity)) }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if textMode { textModeHint.transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity)) }
+                }
             }
-            .overlay(alignment: .bottomTrailing) { if textMode { textModeHint } }
         }
+        .sensoryFeedback(.selection, trigger: page)    // a tick per page turn
         .task { await open() }
         .onDisappear { saveTask?.cancel(); hideTask?.cancel(); Task { await model.source?.release(volume: volume.id) } }
         .onChange(of: model.progress[volume.id]) { _, p in
@@ -138,6 +144,7 @@ struct ProofReaderView: View {
                     if ocrBusy { ProgressView().frame(width: 24, height: 24) } else { Text("文").font(.headline).frame(width: 24, height: 24) }
                 }
                 .buttonStyle(.glass).tint(textMode ? .yellow : nil)
+                .glassEffectID("textmode", in: glass)
                 .disabled(ocrBusy)
                 #else
                 Color.clear.frame(width: 44, height: 24)
@@ -168,6 +175,7 @@ struct ProofReaderView: View {
                 Slider(value: .constant(0), in: 0...1).disabled(true)
             }
             Text(ready ? pageLabel : "—").font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
+                .contentTransition(.numericText()).animation(.snappy, value: page)
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .frame(maxWidth: 340)
@@ -177,11 +185,13 @@ struct ProofReaderView: View {
 
     private var textModeHint: some View {
         Text("Drag a box around the text").font(.footnote).padding(.horizontal, 12).padding(.vertical, 6)
-            .glassEffect(.regular.tint(.yellow.opacity(0.35)), in: .capsule).padding(.trailing).padding(.bottom, 64)
+            .glassEffect(.regular.tint(.yellow.opacity(0.35)), in: .capsule)
+            .glassEffectID("textmode-hint", in: glass)
+            .padding(.trailing).padding(.bottom, 64)
     }
 
     private func toggleTextMode() {
-        textMode.toggle()
+        withAnimation(.spring(duration: 0.4, bounce: 0.25)) { textMode.toggle() }
         setChrome(true, autoHide: !textMode)
         if textMode, model.ocr == nil {
             ocrBusy = true
