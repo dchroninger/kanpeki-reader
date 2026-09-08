@@ -236,6 +236,13 @@ final class AppModel {
         await rescan()
     }
 
+    /// Pull-to-refresh: re-read the folder, pull sync + index, rescan what changed.
+    func refreshAll() async {
+        monitor?.refresh()
+        await refreshSync()
+        await rescan()
+    }
+
     func refreshSync() async {
         do {
             try await sync.refresh()

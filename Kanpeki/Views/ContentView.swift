@@ -21,6 +21,7 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Kanpeki")
+            .refreshable { await model.refreshAll() }
             .overlay {
                 if !model.hasLoaded {
                     ProgressView().controlSize(.large)     // never flash "empty" before the first load

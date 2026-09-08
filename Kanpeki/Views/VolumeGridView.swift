@@ -47,6 +47,7 @@ struct VolumeGridView: View {
             }
             .padding()
         }
+        .refreshable { await model.refreshAll() }
         .navigationTitle(series)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
