@@ -35,6 +35,9 @@ final class AppModel {
     private(set) var syncError: String?
     private(set) var lastSync: Date?
     private(set) var startupError: String?
+    /// False until the first list load has completed. Views show a neutral
+    /// placeholder before that and the empty state only after it.
+    private(set) var hasLoaded = false
     var isScanning: Bool { scanProgress != nil }
     /// Decoded covers, keyed by volume. Filled at launch so the grid reads
     /// as a library instead of a wall of placeholders.
@@ -100,6 +103,8 @@ final class AppModel {
         monitor = mon
         let src = CloudLibrarySource(rootURL: root, isUbiquitous: backend!.isCloud, container: container, downloads: downloads)
         source = src
+        // Cached rows first, before any network: the library appears at once.
+        await refreshLists()
 
         // 2. State: CloudKit private DB when an account is there, else local.
         let ck = CloudKitSyncStore()
@@ -199,6 +204,7 @@ final class AppModel {
             covers = covers.filter { live.contains($0.key) }
             prefetchCovers()
         } catch { startupError = error.localizedDescription }
+        hasLoaded = true
     }
 
     /// Decode every cover we don't have yet, off the main actor, in batches.

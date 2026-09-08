@@ -20,7 +20,13 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Kanpeki")
-            .overlay { if model.series.isEmpty { EmptyLibraryView() } }
+            .overlay {
+                if !model.hasLoaded {
+                    ProgressView().controlSize(.large)     // never flash "empty" before the first load
+                } else if model.series.isEmpty {
+                    EmptyLibraryView()
+                }
+            }
             .toolbar {
                 ToolbarItem { Button { showStorage = true } label: { Label("Storage & Sync", systemImage: "internaldrive") } }
                 ToolbarItem { Button { model.monitor?.refresh(); Task { await model.refreshSync() } } label: { Label("Refresh", systemImage: "arrow.clockwise") } }
