@@ -50,7 +50,11 @@ struct VolumeGridView: View {
         .navigationTitle(series)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(selecting ? "Done" : "Select") { withAnimation(.snappy) { selecting.toggle(); if !selecting { selection = [] } } }
+                if selecting {
+                    Button("Done") { withAnimation(.snappy) { selecting = false; selection = [] } }
+                } else {
+                    Button { withAnimation(.snappy) { selecting = true } } label: { Label("Select", systemImage: "checkmark.circle") }
+                }
             }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -155,16 +159,29 @@ struct AvailabilityBadge: View {
     let availability: Availability
     var kept = false
     var onDownload: () -> Void = {}
+    /// Tapped, but the folder monitor hasn't reported progress yet.
+    @State private var requested = false
+    /// Show the "landed" mark briefly after a download completes.
+    @State private var justLanded = false
+    @State private var spin = false
     private var isLocal: Bool { availability == .local }
+
     var body: some View {
         ZStack {
             switch availability {
             case .local:
-                // Kept-offline volumes get the solid mark; cached ones the plain check.
-                Image(systemName: kept ? "arrow.down.circle.fill" : "checkmark").foregroundStyle(.green)
+                Image(systemName: justLanded ? "arrow.down.circle.fill" : "checkmark").foregroundStyle(.green)
                     .symbolEffect(.bounce, value: isLocal)           // one bounce when the download lands
+            case .remote where requested:
+                // Indeterminate ring the instant the cloud is tapped.
+                Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
+                Circle().trim(from: 0, to: 0.28).stroke(Color.accentColor, style: .init(lineWidth: 2.5, lineCap: .round))
+                    .rotationEffect(.degrees(spin ? 360 : 0))
+                    .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: spin)
+                    .padding(5)
+                    .onAppear { spin = true }
             case .remote:
-                Button(action: onDownload) { Image(systemName: "icloud.and.arrow.down").frame(width: 26, height: 26) }
+                Button { requested = true; onDownload() } label: { Image(systemName: "icloud.and.arrow.down").frame(width: 26, height: 26) }
                     .buttonStyle(.plain)
             case .downloading(let f):
                 Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
@@ -174,6 +191,13 @@ struct AvailabilityBadge: View {
                     .padding(5)
             case .unknown:
                 Image(systemName: "questionmark")
+            }
+        }
+        .onChange(of: availability) { old, new in
+            if case .remote = new {} else { requested = false }
+            if new == .local, old != .local {
+                justLanded = true
+                Task { try? await Task.sleep(for: .seconds(1.2)); withAnimation(.snappy) { justLanded = false } }
             }
         }
         .font(.caption.bold())
