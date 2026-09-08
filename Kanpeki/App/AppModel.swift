@@ -1,6 +1,8 @@
 import SwiftUI
 import SwiftData
 import KanpekiCore
+import KanpekiDictionary
+import KanpekiOCR
 import os
 
 /// Wires container → monitor → scanner → source → views, and sync store →
@@ -43,6 +45,32 @@ final class AppModel {
     private var coverTask: Task<Void, Never>?
     private var publishTask: Task<Void, Never>?
     private var publishAgain = false
+
+    /// JMdict, opened on first use (50 MB SQLite in the bundle).
+    private(set) var dictionary: JMDict?
+    /// manga-ocr, loaded on first text-mode use (~200 MB of CoreML).
+    private(set) var ocr: MangaOCR?
+    private(set) var ocrLoadError: String?
+
+    func loadDictionary() -> JMDict? {
+        if let dictionary { return dictionary }
+        guard let url = Bundle.main.url(forResource: "jmdict", withExtension: "sqlite") else { return nil }
+        dictionary = try? JMDict(url: url)
+        return dictionary
+    }
+
+    func loadOCR() async -> MangaOCR? {
+        if let ocr { return ocr }
+        guard let enc = Bundle.main.url(forResource: "MangaOCREncoder", withExtension: "mlmodelc"),
+              let dec = Bundle.main.url(forResource: "MangaOCRDecoder", withExtension: "mlmodelc"),
+              let vocab = Bundle.main.url(forResource: "manga-ocr-vocab", withExtension: "txt") else {
+            ocrLoadError = "OCR model not in bundle"; return nil
+        }
+        do {
+            let m = try await Task.detached(priority: .userInitiated) { try MangaOCR(encoderURL: enc, decoderURL: dec, vocabURL: vocab) }.value
+            ocr = m; return m
+        } catch { ocrLoadError = error.localizedDescription; return nil }
+    }
 
     let container: ModelContainer
     let scanner: LibraryScanner

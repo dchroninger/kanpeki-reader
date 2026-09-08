@@ -16,6 +16,10 @@ settings:
 packages:
   KanpekiCore:
     path: KanpekiCore
+  KanpekiDictionary:
+    path: KanpekiDictionary
+  KanpekiOCR:
+    path: KanpekiOCR
 targets:
   Kanpeki:
     type: application
@@ -25,6 +29,8 @@ targets:
         excludes: ["Resources/Info.plist"]
     dependencies:
       - package: KanpekiCore
+      - package: KanpekiDictionary
+      - package: KanpekiOCR
     entitlements:
       path: Kanpeki/Resources/Kanpeki.entitlements
       properties:

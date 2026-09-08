@@ -53,6 +53,10 @@ struct StorageView: View {
                     LabeledContent("Covers in memory", value: "\(model.covers.count)")
                     Button("Refresh now", systemImage: "arrow.clockwise") { Task { await model.refreshSync() } }
                 }
+                Section("Credits") {
+                    Text("Dictionary: JMdict, © Electronic Dictionary Research and Development Group, CC BY-SA 4.0.").font(.caption)
+                    Text("OCR: manga-ocr by kha-white (Apache 2.0), converted to Core ML.").font(.caption)
+                }
                 if let e = model.startupError {
                     Section("Last error") { Text(e).font(.caption).foregroundStyle(.red) }
                 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import KanpekiCore
+import KanpekiOCR
 
 /// The reader. iOS pages with a finger-tracking page curl (`PagerView`);
 /// macOS falls back to a static spread with tap/swipe. Chrome fades in on
@@ -22,19 +23,55 @@ struct ProofReaderView: View {
     @State private var errorText: String?
     @State private var chromeVisible = true
     @State private var hideTask: Task<Void, Never>?
+    @State private var textMode = false
+    @State private var ocrBusy = false
+    @State private var ocrResult: MangaOCR.Result?
+    @State private var ocrError: String?
     // macOS-only static spread
     @State private var images: [(page: Int, image: CGImage)] = []
     @State private var flash: Edge?
 
     var body: some View {
+        ZStack {
+            pageArea.ignoresSafeArea()
+            // Chrome and HUD stay inside the safe area (Dynamic Island, home indicator).
+            VStack {
+                chrome.opacity(chromeVisible ? 1 : 0).allowsHitTesting(chromeVisible)
+                Spacer()
+                hud.opacity(chromeVisible ? 1 : 0).allowsHitTesting(chromeVisible)
+            }
+            .overlay(alignment: .bottomTrailing) { if textMode { textModeHint } }
+        }
+        .task { await open() }
+        .onDisappear { saveTask?.cancel(); hideTask?.cancel(); Task { await model.source?.release(volume: volume.id) } }
+        .onChange(of: model.progress[volume.id]) { _, p in
+            guard let p, p.device != DeviceName.current, ready, p.page != page else { return }
+            remote = p; setChrome(true)
+        }
+        .sheet(item: $ocrResult) { r in
+            DictionarySheet(text: r.text, seconds: r.seconds)
+                .environment(model)
+                .presentationDetents([.fraction(0.4), .medium, .large])
+                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                .presentationDragIndicator(.visible)
+        }
+        .alert("OCR", isPresented: Binding(get: { ocrError != nil }, set: { if !$0 { ocrError = nil } })) { Button("OK") {} } message: { Text(ocrError ?? "") }
+        #if os(iOS)
+        .statusBarHidden(true)
+        #endif
+    }
+
+    private var pageArea: some View {
         GeometryReader { geo in
             ZStack {
                 Color.black.ignoresSafeArea()
                 if let provider, ready {
                     #if os(iOS)
                     PagerView(provider: provider, rightToLeft: volume.rightToLeft, twoUp: twoUp, page: $page, visiblePages: $visiblePages,
+                              textMode: textMode,
                               onUserTurn: { setChrome(false, fast: true); scheduleSave() },
-                              onMiddleTap: { setChrome(!chromeVisible) })
+                              onMiddleTap: { setChrome(!chromeVisible) },
+                              onRegionSelected: { crop in Task { await recognize(crop) } })
                     #else
                     staticSpread(geo)
                     #endif
@@ -55,18 +92,6 @@ struct ProofReaderView: View {
                 #endif
             }
         }
-        .ignoresSafeArea()
-        .overlay(alignment: .top) { chrome.opacity(chromeVisible ? 1 : 0).allowsHitTesting(chromeVisible) }
-        .overlay(alignment: .bottom) { hud.opacity(chromeVisible ? 1 : 0).allowsHitTesting(chromeVisible) }
-        .task { await open() }
-        .onDisappear { saveTask?.cancel(); hideTask?.cancel(); Task { await model.source?.release(volume: volume.id) } }
-        .onChange(of: model.progress[volume.id]) { _, p in
-            guard let p, p.device != DeviceName.current, ready, p.page != page else { return }
-            remote = p; setChrome(true)
-        }
-        #if os(iOS)
-        .statusBarHidden(true)
-        #endif
     }
 
     // MARK: Status
@@ -88,7 +113,8 @@ struct ProofReaderView: View {
         hideTask?.cancel()
         let duration = visible ? 0.15 : (fast ? 0.1 : 0.5)
         withAnimation(.easeInOut(duration: duration)) { chromeVisible = visible }
-        guard visible, autoHide else { return }
+        // `-chromeHold YES` launch argument keeps chrome up for UI testing.
+        guard visible, autoHide, !UserDefaults.standard.bool(forKey: "chromeHold") else { return }
         hideTask = Task {
             try? await Task.sleep(for: .seconds(4))
             guard !Task.isCancelled else { return }
@@ -107,7 +133,15 @@ struct ProofReaderView: View {
                 Text(volume.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                     .padding(.horizontal, 12).padding(.vertical, 6).glassEffect(.regular, in: .capsule)
                 Spacer()
+                #if os(iOS)
+                Button { toggleTextMode() } label: {
+                    if ocrBusy { ProgressView().frame(width: 24, height: 24) } else { Text("文").font(.headline).frame(width: 24, height: 24) }
+                }
+                .buttonStyle(.glass).tint(textMode ? .yellow : nil)
+                .disabled(ocrBusy)
+                #else
                 Color.clear.frame(width: 44, height: 24)
+                #endif
             }
             if let r = remote {
                 HStack {
@@ -138,7 +172,31 @@ struct ProofReaderView: View {
         .padding(.horizontal, 16).padding(.vertical, 8)
         .frame(maxWidth: 340)
         .glassEffect(.regular, in: .capsule)
-        .padding(.bottom, 20)
+        .padding(.bottom, 8)
+    }
+
+    private var textModeHint: some View {
+        Text("Drag a box around the text").font(.footnote).padding(.horizontal, 12).padding(.vertical, 6)
+            .glassEffect(.regular.tint(.yellow.opacity(0.35)), in: .capsule).padding(.trailing).padding(.bottom, 64)
+    }
+
+    private func toggleTextMode() {
+        textMode.toggle()
+        setChrome(true, autoHide: !textMode)
+        if textMode, model.ocr == nil {
+            ocrBusy = true
+            Task { _ = await model.loadOCR(); ocrBusy = false; if let e = model.ocrLoadError { ocrError = e; textMode = false } }
+        }
+    }
+
+    private func recognize(_ crop: CGImage) async {
+        guard let ocr = await model.loadOCR() else { ocrError = model.ocrLoadError ?? "OCR unavailable"; return }
+        ocrBusy = true
+        defer { ocrBusy = false }
+        do {
+            let r = try await ocr.recognize(crop)
+            if r.text.isEmpty { ocrError = "No text recognized" } else { ocrResult = r }
+        } catch { ocrError = error.localizedDescription }
     }
 
     private var pageLabel: String {
@@ -241,4 +299,8 @@ struct ProofReaderView: View {
         provider.prefetch(around: pages.last ?? page)
     }
     #endif
+}
+
+extension MangaOCR.Result: @retroactive Identifiable {
+    public var id: String { text + String(tokens.count) }
 }

@@ -19,7 +19,7 @@ public actor MangaOCR {
     /// `encoderURL`/`decoderURL` are compiled `.mlmodelc` bundles (Xcode
     /// compiles `.mlpackage` resources; tests call `MLModel.compileModel`).
     public init(encoderURL: URL, decoderURL: URL, vocabURL: URL, maxLength: Int = 128) throws {
-        let cfg = MLModelConfiguration(); cfg.computeUnits = .all
+        let cfg = MLModelConfiguration(); cfg.computeUnits = .cpuAndNeuralEngine   // ANE on device; the simulator has no MPSGraph
         encoder = try MLModel(contentsOf: encoderURL, configuration: cfg)
         decoder = try MLModel(contentsOf: decoderURL, configuration: cfg)
         vocab = try String(contentsOf: vocabURL, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)

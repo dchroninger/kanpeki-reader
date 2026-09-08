@@ -14,8 +14,12 @@ struct PagerView: UIViewControllerRepresentable {
     let twoUp: Bool
     @Binding var page: Int
     @Binding var visiblePages: [Int]
+    /// Text mode: page turning is frozen and a drag selects a region to OCR.
+    var textMode: Bool = false
     var onUserTurn: () -> Void
     var onMiddleTap: () -> Void
+    /// Region the user boxed, cropped from the page bitmap.
+    var onRegionSelected: (CGImage) -> Void = { _ in }
 
     func makeUIViewController(context: Context) -> UIPageViewController {
         let pvc = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal,
@@ -27,6 +31,12 @@ struct PagerView: UIViewControllerRepresentable {
         pvc.gestureRecognizers.compactMap { $0 as? UITapGestureRecognizer }.forEach { $0.isEnabled = false }
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         pvc.view.addGestureRecognizer(tap)
+        let region = RegionSelectView(frame: pvc.view.bounds)
+        region.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        region.isHidden = true
+        region.onSelect = { [weak coordinator = context.coordinator] rect in coordinator?.regionSelected(rect) }
+        pvc.view.addSubview(region)
+        context.coordinator.region = region
         context.coordinator.pvc = pvc
         context.coordinator.show(startingAt: page, direction: .forward, animated: false)
         return pvc
@@ -35,6 +45,7 @@ struct PagerView: UIViewControllerRepresentable {
     func updateUIViewController(_ pvc: UIPageViewController, context: Context) {
         let c = context.coordinator
         c.parent = self
+        c.setTextMode(textMode)
         if c.twoUp != twoUp {
             c.twoUp = twoUp
             c.show(startingAt: c.currentPages.first ?? page, direction: .forward, animated: false)
@@ -51,8 +62,30 @@ struct PagerView: UIViewControllerRepresentable {
     final class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
         var parent: PagerView
         weak var pvc: UIPageViewController?
+        weak var region: RegionSelectView?
         var twoUp: Bool
         var currentPages: [Int] = []
+
+        /// Freeze paging and let the overlay take the drag.
+        func setTextMode(_ on: Bool) {
+            guard let pvc, region?.isHidden == on else { return }
+            region?.isHidden = !on
+            if on, let region { pvc.view.bringSubviewToFront(region) }   // child page views are added later
+            for g in pvc.gestureRecognizers where !(g is UITapGestureRecognizer) { g.isEnabled = !on }
+        }
+
+        /// Map the boxed rect onto whichever page image it lands in and crop.
+        func regionSelected(_ rect: CGRect) {
+            guard let pvc, let spread = pvc.viewControllers?.first as? SpreadViewController else { return }
+            for (iv, page) in spread.imageViewsWithPages {
+                let frameInPVC = iv.convert(iv.bounds, to: pvc.view)
+                let hit = rect.intersection(frameInPVC)
+                guard !hit.isNull, hit.width > 8, hit.height > 8, let img = iv.image?.cgImage else { continue }
+                let sx = CGFloat(img.width) / frameInPVC.width, sy = CGFloat(img.height) / frameInPVC.height
+                let px = CGRect(x: (hit.minX - frameInPVC.minX) * sx, y: (hit.minY - frameInPVC.minY) * sy, width: hit.width * sx, height: hit.height * sy).integral
+                if let crop = img.cropping(to: px) { _ = page; parent.onRegionSelected(crop); return }
+            }
+        }
 
         init(_ parent: PagerView) { self.parent = parent; self.twoUp = parent.twoUp }
 
@@ -125,6 +158,7 @@ struct PagerView: UIViewControllerRepresentable {
 
         @objc func tapped(_ g: UITapGestureRecognizer) {
             guard let view = g.view else { return }
+            if parent.textMode { parent.onMiddleTap(); return }   // any tap toggles chrome in text mode
             let x = g.location(in: view).x, w = view.bounds.width
             if x > w / 3 && x < w * 2 / 3 { parent.onMiddleTap(); return }
             let leading = x < w / 3
@@ -149,6 +183,7 @@ final class SpreadViewController: UIViewController {
     let rightToLeft: Bool
     let provider: PageProvider
     private var imageViews: [UIImageView] = []
+    var imageViewsWithPages: [(UIImageView, Int)] { Array(zip(imageViews, rightToLeft ? pages.reversed() : pages)) }
 
     init(pages: [Int], rightToLeft: Bool, provider: PageProvider) {
         self.pages = pages; self.rightToLeft = rightToLeft; self.provider = provider
@@ -184,6 +219,40 @@ final class SpreadViewController: UIViewController {
         for (iv, a) in zip(imageViews, aspects) {
             iv.frame = CGRect(x: x, y: y, width: a * h, height: h)
             x += a * h
+        }
+    }
+}
+#endif
+
+#if os(iOS)
+/// Drag a box over a bubble. Draws the marquee, reports the final rect.
+final class RegionSelectView: UIView {
+    var onSelect: ((CGRect) -> Void)?
+    private let marquee = CAShapeLayer()
+    private var start: CGPoint = .zero
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        marquee.fillColor = UIColor.systemYellow.withAlphaComponent(0.18).cgColor
+        marquee.strokeColor = UIColor.systemYellow.cgColor
+        marquee.lineWidth = 2; marquee.lineDashPattern = [6, 4]
+        layer.addSublayer(marquee)
+        addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(pan(_:))))
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func pan(_ g: UIPanGestureRecognizer) {
+        let p = g.location(in: self)
+        switch g.state {
+        case .began: start = p; marquee.path = nil
+        case .changed:
+            marquee.path = UIBezierPath(roundedRect: CGRect(x: min(start.x, p.x), y: min(start.y, p.y), width: abs(p.x - start.x), height: abs(p.y - start.y)), cornerRadius: 6).cgPath
+        case .ended:
+            let r = CGRect(x: min(start.x, p.x), y: min(start.y, p.y), width: abs(p.x - start.x), height: abs(p.y - start.y))
+            marquee.path = nil
+            if r.width > 12 && r.height > 12 { onSelect?(r) }
+        default: marquee.path = nil
         }
     }
 }
