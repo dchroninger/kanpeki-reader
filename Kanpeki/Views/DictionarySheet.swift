@@ -12,7 +12,13 @@ struct DictionarySheet: View {
     let seconds: Double
     @State private var start = 0
     @State private var matches: [DictionaryMatch] = []
-    @State private var showTranslate = false
+    @State private var translation: BubbleTranslation?
+    @State private var translating = true
+    @State private var translationError: String?
+    @AppStorage("preferLanguageModel") private var preferLanguageModel = true
+    #if canImport(Translation)
+    @State private var fallbackConfig: TranslationSession.Configuration?
+    #endif
 
     private var chars: [Character] { Array(text) }
     private var highlight: Range<Int> { start..<min(start + (matches.first?.matchedLength ?? 1), chars.count) }
@@ -23,11 +29,10 @@ struct DictionarySheet: View {
                 Section {
                     FlowText(chars: chars, highlight: highlight) { start = $0; lookup() }
                         .padding(.vertical, 4)
+                    translationRow
                     HStack {
                         Button("Copy", systemImage: "doc.on.doc") { copy(text) }.buttonStyle(.glass)
-                        #if canImport(Translation)
-                        Button("Translate", systemImage: "translate") { showTranslate = true }.buttonStyle(.glass)
-                        #endif
+                        if let t = translation { Button("Copy translation", systemImage: "doc.on.doc.fill") { copy(t.text) }.buttonStyle(.glass) }
                         Spacer()
                         Text("OCR \(String(format: "%.1f", seconds))s").font(.caption2).foregroundStyle(.tertiary)
                     }
@@ -44,9 +49,53 @@ struct DictionarySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
         }
-        .task { lookup() }
+        .task { lookup(); await translate() }
         #if canImport(Translation)
-        .translationPresentation(isPresented: $showTranslate, text: text)
+        .translationTask(fallbackConfig) { session in
+            // TranslationSession isn't Sendable; the framework hands it to this
+            // closure and expects the calls to happen right here.
+            nonisolated(unsafe) let s = session
+            do {
+                var pieces: [String] = []
+                for part in SentenceSplitter.split(text) { pieces.append(try await s.translate(part).targetText) }
+                translation = BubbleTranslation(text: pieces.joined(separator: " "), note: nil, backend: .appleTranslate)
+            } catch { translationError = error.localizedDescription }
+            translating = false
+        }
+        #endif
+    }
+
+    @ViewBuilder private var translationRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let t = translation {
+                Text(t.text).font(.body)
+                if let n = t.note { Text(n).font(.footnote).foregroundStyle(.secondary).italic() }
+                Text(t.backend.rawValue).font(.caption2).foregroundStyle(.tertiary)
+            } else if translating {
+                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Translating…").foregroundStyle(.secondary) }
+            } else if let e = translationError {
+                Text(e).font(.footnote).foregroundStyle(.red)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// On-device language model when present and preferred; else Apple Translation.
+    private func translate() async {
+        translating = true; translationError = nil
+        if preferLanguageModel, LanguageModelTranslator.isAvailable {
+            do {
+                translation = try await LanguageModelTranslator.translate(text)
+                translating = false
+                return
+            } catch { translationError = "Model: \(error.localizedDescription)" }
+        }
+        #if canImport(Translation)
+        translationError = nil
+        fallbackConfig = TranslationSession.Configuration(source: Locale.Language(identifier: "ja"), target: Locale.Language(identifier: "en"))
+        #else
+        translating = false
+        translationError = translationError ?? "No translator available"
         #endif
     }
 

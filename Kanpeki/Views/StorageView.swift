@@ -53,6 +53,14 @@ struct StorageView: View {
                     LabeledContent("Covers in memory", value: "\(model.covers.count)")
                     Button("Refresh now", systemImage: "arrow.clockwise") { Task { await model.refreshSync() } }
                 }
+                Section("Translation") {
+                    Toggle("Prefer on-device language model", isOn: Binding(
+                        get: { UserDefaults.standard.object(forKey: "preferLanguageModel") as? Bool ?? true },
+                        set: { UserDefaults.standard.set($0, forKey: "preferLanguageModel") }))
+                    LabeledContent("Language model", value: LanguageModelTranslator.isAvailable ? "available" : (LanguageModelTranslator.unavailableReason ?? "unavailable"))
+                    Text("Bubble text is translated on this device. Apple Translate is used when the language model isn't available.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Section("Credits") {
                     Text("Dictionary: JMdict, © Electronic Dictionary Research and Development Group, CC BY-SA 4.0.").font(.caption)
                     Text("OCR: manga-ocr by kha-white (Apache 2.0), converted to Core ML.").font(.caption)

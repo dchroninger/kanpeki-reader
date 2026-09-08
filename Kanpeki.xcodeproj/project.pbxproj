@@ -21,6 +21,7 @@
 		61CB9B42BFDDA87BB5E2C2BD /* jmdict.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = BC76D064A0DE2930D928B985 /* jmdict.sqlite */; };
 		8A0E28A9595239713E30AF64 /* KanpekiCore in Frameworks */ = {isa = PBXBuildFile; productRef = D90CB368C4D558944148AFE0 /* KanpekiCore */; };
 		90547C08D5D914BAA12E3A91 /* PageDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA6C456DEDCA5ABE9842AF76 /* PageDecoder.swift */; };
+		9A7A9DDB33B4327F3BC66C27 /* Translator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A36A2191FE1688FC6C4AEA /* Translator.swift */; };
 		9AEEE2F750FB7426AAA325BD /* manga-ocr-vocab.txt in Resources */ = {isa = PBXBuildFile; fileRef = 64EB02615D57075978CCD554 /* manga-ocr-vocab.txt */; };
 		9EC5B9DFE2C4534DED97A442 /* ProofReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874248FAD5C8C955DE2BBCB3 /* ProofReaderView.swift */; };
 		E89D4023892886A70D54790A /* KanpekiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100D07D2181DCF5535E4356C /* KanpekiApp.swift */; };
@@ -37,6 +38,7 @@
 		2E55B26826B0DF39B36B97AE /* PageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageProvider.swift; sourceTree = "<group>"; };
 		2FD5DDB053BB45E8763EAB9F /* SampleLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleLibrary.swift; sourceTree = "<group>"; };
 		4D7B7E0725160692623A5C97 /* StorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageView.swift; sourceTree = "<group>"; };
+		50A36A2191FE1688FC6C4AEA /* Translator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translator.swift; sourceTree = "<group>"; };
 		5A6AB0417FC05141C9C07C92 /* MangaOCREncoder.mlpackage */ = {isa = PBXFileReference; path = MangaOCREncoder.mlpackage; sourceTree = "<group>"; };
 		5B53C7AF4DEEED214DEEFF57 /* DictionarySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionarySheet.swift; sourceTree = "<group>"; };
 		64EB02615D57075978CCD554 /* manga-ocr-vocab.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "manga-ocr-vocab.txt"; sourceTree = "<group>"; };
@@ -147,6 +149,7 @@
 				100D07D2181DCF5535E4356C /* KanpekiApp.swift */,
 				AA6C456DEDCA5ABE9842AF76 /* PageDecoder.swift */,
 				2FD5DDB053BB45E8763EAB9F /* SampleLibrary.swift */,
+				50A36A2191FE1688FC6C4AEA /* Translator.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -263,6 +266,7 @@
 				9EC5B9DFE2C4534DED97A442 /* ProofReaderView.swift in Sources */,
 				4D430CFF7060E6A58CB2CCBF /* SampleLibrary.swift in Sources */,
 				F44793F8A1EE524E745FD62B /* StorageView.swift in Sources */,
+				9A7A9DDB33B4327F3BC66C27 /* Translator.swift in Sources */,
 				385382A80E9F7DA43AFD6D51 /* VolumeGridView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
