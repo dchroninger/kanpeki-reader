@@ -170,8 +170,9 @@ struct AvailabilityBadge: View {
         ZStack {
             switch availability {
             case .local:
-                Image(systemName: justLanded ? "arrow.down.circle.fill" : "checkmark").foregroundStyle(.green)
-                    .symbolEffect(.bounce, value: isLocal)           // one bounce when the download lands
+                // Check draws in as the ring completes, then settles to the "on device" arrow.
+                Image(systemName: justLanded ? "checkmark" : "arrow.down.circle.fill").foregroundStyle(.green)
+                    .symbolEffect(.bounce, value: isLocal)
             case .remote where requested:
                 DownloadRing(progress: nil)                    // pending: spinning arc
             case .remote:
