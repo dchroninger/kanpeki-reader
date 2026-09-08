@@ -166,30 +166,37 @@ struct AvailabilityBadge: View {
     enum Phase: Equatable { case cloud, pending, downloading(Double), landed, hidden }
     @State private var phase: Phase = .hidden
 
+    /// One symbol image lives through every phase; only its name changes, so
+    /// SF Symbols' magic replace draws each transition (arrow → check).
+    private var symbolName: String {
+        switch phase {
+        case .cloud: "icloud.and.arrow.down"
+        case .pending, .downloading: "arrow.down"
+        case .landed: "checkmark"
+        case .hidden: "checkmark"
+        }
+    }
+    private var ringProgress: Double? { if case .downloading(let f) = phase { f } else { nil } }
+    private var showsRing: Bool { switch phase { case .pending, .downloading: true; default: false } }
+
     var body: some View {
         ZStack {
-            switch phase {
-            case .cloud:
-                Button { withAnimation(.snappy) { phase = .pending }; onDownload() } label: {
-                    Image(systemName: "icloud.and.arrow.down").frame(width: 26, height: 26)
-                }
-                .buttonStyle(.plain)
-            case .pending:
-                DownloadRing(progress: nil)                         // accent: asked, nothing moving yet
-            case .downloading(let f):
-                DownloadRing(progress: f, tint: .green)             // green: bytes flowing
-            case .landed:
-                Image(systemName: "checkmark").foregroundStyle(.green)
-                    .transition(.symbolEffect(.appear.up))
-                    .symbolEffect(.bounce, options: .nonRepeating, value: phase)
-            case .hidden:
-                EmptyView()
+            if showsRing {
+                DownloadRing(progress: ringProgress, tint: ringProgress == nil ? .accentColor : .green)
+                    .transition(.opacity)
             }
+            Image(systemName: symbolName)
+                .foregroundStyle(phase == .landed ? .green : .primary)
+                .font(showsRing ? .system(size: 9, weight: .bold) : .caption.bold())
+                .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp)))
+                .symbolEffect(.bounce, options: .nonRepeating, value: phase == .landed)
         }
-        .font(.caption.bold())
         .frame(width: 26, height: 26)
         .glassEffect(.regular, in: .circle)
+        .contentShape(Circle())
+        .onTapGesture { if phase == .cloud { withAnimation(.snappy) { phase = .pending }; onDownload() } }
         .opacity(phase == .hidden ? 0 : 1)
+        .animation(.snappy, value: phase)
         .onAppear { phase = Self.initialPhase(availability) }
         .onChange(of: availability) { _, new in
             switch (phase, new) {
