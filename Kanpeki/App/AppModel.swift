@@ -91,6 +91,7 @@ final class AppModel {
     func start() async {
         guard backend == nil else { return }
         byteCap = await downloads.byteCap
+        kept = await downloads.keptPaths
         // 1. Bulk: ubiquity container, else app Documents.
         if let info = await UbiquityContainer.resolve() {
             backend = .iCloud(info.documentsURL)
@@ -103,6 +104,7 @@ final class AppModel {
         monitor = mon
         let src = CloudLibrarySource(rootURL: root, isUbiquitous: backend!.isCloud, container: container, downloads: downloads)
         source = src
+        await src.update(kept: kept)
         // Cached rows first, before any network: the library appears at once.
         await refreshLists()
 
@@ -253,19 +255,37 @@ final class AppModel {
 
     func noteProgress(_ p: ReadingProgress, for id: ContentID) { if progress[id] == nil { progress[id] = p } }
 
-    func startDownload(_ v: VolumeRef) {
+    /// Explicit downloads are kept on the device until removed.
+    private(set) var kept: Set<String> = []
+
+    func startDownload(_ v: VolumeRef) { keepOffline([v]) }
+
+    func keepOffline(_ vs: [VolumeRef]) {
         guard let source else { return }
         Task {
-            do { try await downloads.startDownload(try await source.item(for: v.id)) }
-            catch { startupError = error.localizedDescription }
+            var items: [CloudFileItem] = []
+            for v in vs { if let i = try? await source.item(for: v.id) { items.append(i) } }
+            await downloads.keep(items)
+            kept = await downloads.keptPaths
+            await source.update(kept: kept)
+            await refreshLists()
+            monitor?.refresh()
         }
     }
 
-    func evict(_ v: VolumeRef) {
+    func evict(_ v: VolumeRef) { evict([v]) }
+
+    func evict(_ vs: [VolumeRef]) {
         guard let source else { return }
         Task {
-            do { try await downloads.evict(try await source.item(for: v.id)); evictions = await downloads.evictionLog }
-            catch { startupError = error.localizedDescription }
+            for v in vs {
+                do { try await downloads.evict(try await source.item(for: v.id)) }
+                catch { startupError = error.localizedDescription }
+            }
+            evictions = await downloads.evictionLog
+            kept = await downloads.keptPaths
+            await source.update(kept: kept)
+            await refreshLists()
             monitor?.refresh()
         }
     }
