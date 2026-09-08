@@ -39,8 +39,11 @@ struct VolumeGridView: View {
                             content.scaleEffect(phase.isIdentity ? 1 : 0.94).opacity(phase.isIdentity ? 1 : 0.65)
                         }
                         .contextMenu {
-                            if case .remote = v.availability { Button("Download", systemImage: "icloud.and.arrow.down") { model.startDownload(v) } }
-                            if v.availability == .local, model.backend?.isCloud == true { Button("Remove download", systemImage: "xmark.icloud") { model.evict(v) } }
+                            if case .remote = v.availability { Button("Download", systemImage: "arrow.down.circle") { model.startDownload(v) } }
+                            if v.availability == .local, model.backend?.isCloud == true { Button("Remove download", systemImage: "xmark.icloud", role: .destructive) { model.evict(v) } }
+                            let later = volumes.drop { $0.id != v.id }.filter { if case .remote = $0.availability { true } else { false } }
+                            if later.count > 1 { Button("Download from here (\(later.count))", systemImage: "arrow.down.to.line") { model.keepOffline(Array(later)) } }
+                            Divider()
                             Button("Select", systemImage: "checkmark.circle") { selecting = true; selection = [v.id] }
                         }
                 }
@@ -75,6 +78,11 @@ struct VolumeGridView: View {
 }
 
 extension VolumeGridView {
+    /// Acting on the selection ends selection mode.
+    private func finishSelecting() {
+        withAnimation(.snappy) { selection = []; selecting = false }
+    }
+
     private func toggle(_ v: VolumeRef) {
         withAnimation(.snappy(duration: 0.15)) { if selection.contains(v.id) { selection.remove(v.id) } else { selection.insert(v.id) } }
     }
@@ -90,9 +98,9 @@ extension VolumeGridView {
             let toGet = chosen.filter { $0.availability != .local }
             let toDrop = chosen.filter { $0.availability == .local }
             if !toDrop.isEmpty, model.backend?.isCloud == true {
-                Button("Remove \(toDrop.count)", systemImage: "xmark.icloud") { model.evict(toDrop); selection = [] }.buttonStyle(.glass)
+                Button("Remove \(toDrop.count)", systemImage: "xmark.icloud") { model.evict(toDrop); finishSelecting() }.buttonStyle(.glass)
             }
-            Button("Download \(toGet.count)", systemImage: "arrow.down.circle.fill") { model.keepOffline(toGet); selection = [] }
+            Button("Download \(toGet.count)", systemImage: "arrow.down.circle.fill") { model.keepOffline(toGet); finishSelecting() }
                 .buttonStyle(.glassProminent).disabled(toGet.isEmpty)
         }
         .font(.subheadline)

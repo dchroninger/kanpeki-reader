@@ -18,6 +18,7 @@ struct ContentView: View {
                                 .contentTransition(.numericText()).animation(.default, value: s.volumeCount)
                         }
                     }
+                    .contextMenu { seriesMenu(s.name) }
                 }
             }
             .navigationTitle("Kanpeki")
@@ -44,6 +45,23 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showStorage) { StorageView() }
+    }
+}
+
+extension ContentView {
+    /// Whole-series download / unload from the sidebar.
+    @ViewBuilder
+    private func seriesMenu(_ name: String) -> some View {
+        let vols = model.volumes[name] ?? []
+        let remote = vols.filter { if case .remote = $0.availability { true } else { false } }
+        let local = vols.filter { $0.availability == .local }
+        let bytes = remote.reduce(0) { $0 + $1.byteSize }
+        Button("Download series (\(remote.count), \(bytes.formatted(.byteCount(style: .file))))", systemImage: "arrow.down.circle") { model.keepOffline(remote) }
+            .disabled(remote.isEmpty)
+        if model.backend?.isCloud == true {
+            Button("Remove downloads (\(local.count))", systemImage: "xmark.icloud", role: .destructive) { model.evict(local) }
+                .disabled(local.isEmpty)
+        }
     }
 }
 
