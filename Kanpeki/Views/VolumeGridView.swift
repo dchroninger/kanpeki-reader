@@ -163,7 +163,6 @@ struct AvailabilityBadge: View {
     @State private var requested = false
     /// Show the "landed" mark briefly after a download completes.
     @State private var justLanded = false
-    @State private var spin = false
     private var isLocal: Bool { availability == .local }
 
     var body: some View {
@@ -173,22 +172,12 @@ struct AvailabilityBadge: View {
                 Image(systemName: justLanded ? "arrow.down.circle.fill" : "checkmark").foregroundStyle(.green)
                     .symbolEffect(.bounce, value: isLocal)           // one bounce when the download lands
             case .remote where requested:
-                // Indeterminate ring the instant the cloud is tapped.
-                Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
-                Circle().trim(from: 0, to: 0.28).stroke(Color.accentColor, style: .init(lineWidth: 2.5, lineCap: .round))
-                    .rotationEffect(.degrees(spin ? 360 : 0))
-                    .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: spin)
-                    .padding(5)
-                    .onAppear { spin = true }
+                DownloadRing(progress: nil)                    // pending: spinning arc
             case .remote:
                 Button { requested = true; onDownload() } label: { Image(systemName: "icloud.and.arrow.down").frame(width: 26, height: 26) }
                     .buttonStyle(.plain)
             case .downloading(let f):
-                Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
-                Circle().trim(from: 0, to: max(f, 0.03)).stroke(Color.accentColor, style: .init(lineWidth: 2.5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.3), value: f)
-                    .padding(5)
+                DownloadRing(progress: f)                      // same ring, now filling
             case .unknown:
                 Image(systemName: "questionmark")
             }
@@ -228,5 +217,25 @@ extension View {
         #else
         sheet(item: item) { content($0).frame(minWidth: 900, minHeight: 700) }
         #endif
+    }
+}
+
+/// One ring for the whole download: spins while pending (progress nil),
+/// then stops at 12 o'clock and fills as bytes arrive.
+struct DownloadRing: View {
+    let progress: Double?
+    @State private var spin = false
+    var body: some View {
+        ZStack {
+            Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
+            Circle().trim(from: 0, to: progress.map { max($0, 0.04) } ?? 0.28)
+                .stroke(Color.accentColor, style: .init(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(progress == nil ? (spin ? 270 : -90) : -90))
+                .animation(progress == nil ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .easeOut(duration: 0.3), value: spin)
+                .animation(.easeOut(duration: 0.3), value: progress)
+        }
+        .padding(5)
+        .onAppear { spin = true }
+        .onChange(of: progress == nil) { _, indeterminate in spin = indeterminate }
     }
 }

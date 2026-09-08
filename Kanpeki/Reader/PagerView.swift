@@ -20,6 +20,8 @@ struct PagerView: UIViewControllerRepresentable {
     var onMiddleTap: () -> Void
     /// Region the user boxed, cropped from the page bitmap.
     var onRegionSelected: (CGImage) -> Void = { _ in }
+    /// Pull down on the page to leave the reader.
+    var onSwipeDown: () -> Void = {}
 
     func makeUIViewController(context: Context) -> UIPageViewController {
         let pvc = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal,
@@ -31,6 +33,9 @@ struct PagerView: UIViewControllerRepresentable {
         pvc.gestureRecognizers.compactMap { $0 as? UITapGestureRecognizer }.forEach { $0.isEnabled = false }
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         pvc.view.addGestureRecognizer(tap)
+        let pull = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pulled(_:)))
+        pull.delegate = context.coordinator
+        pvc.view.addGestureRecognizer(pull)
         let region = RegionSelectView(frame: pvc.view.bounds)
         region.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         region.isHidden = true
@@ -59,7 +64,7 @@ struct PagerView: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     @MainActor
-    final class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
+    final class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate, UIGestureRecognizerDelegate {
         var parent: PagerView
         weak var pvc: UIPageViewController?
         weak var region: RegionSelectView?
@@ -152,6 +157,16 @@ struct PagerView: UIViewControllerRepresentable {
                                 previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
             guard completed, let vc = pvc.viewControllers?.first as? SpreadViewController else { return }
             commit(vc.pages, userDriven: true)
+        }
+
+        // MARK: Pull down to close (coexists with the curl's pan; only a clearly vertical pull counts).
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+        @objc func pulled(_ g: UIPanGestureRecognizer) {
+            guard g.state == .ended, !parent.textMode, let view = g.view else { return }
+            let t = g.translation(in: view), v = g.velocity(in: view)
+            if t.y > 110, abs(t.x) < t.y * 0.6, v.y > 0 { parent.onSwipeDown() }
         }
 
         // MARK: Taps — outer thirds turn (direction follows the book), middle toggles chrome.

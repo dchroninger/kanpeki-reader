@@ -77,7 +77,8 @@ struct ProofReaderView: View {
                               textMode: textMode,
                               onUserTurn: { setChrome(false, fast: true); scheduleSave() },
                               onMiddleTap: { setChrome(!chromeVisible) },
-                              onRegionSelected: { crop in Task { await recognize(crop) } })
+                              onRegionSelected: { crop in Task { await recognize(crop) } },
+                              onSwipeDown: { dismiss() })
                     #else
                     staticSpread(geo)
                     #endif
