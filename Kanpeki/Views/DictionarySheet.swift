@@ -4,56 +4,51 @@ import KanpekiDictionary
 import Translation
 #endif
 
-/// Recognized text on top; tap a character to look up from there. Results
-/// come from JMdict via deinflection + longest-match scan.
+/// The recognized bubble as words. Tap a word for one card: reading with
+/// pitch, inflection chain, top glosses; "More" for alternates. Translation
+/// sits blurred until revealed (or always shown, by preference).
 struct DictionarySheet: View {
     @Environment(AppModel.self) private var model
     let text: String
     let seconds: Double
-    @State private var start = 0
-    @State private var matches: [DictionaryMatch] = []
+    @State private var segments: [Segment] = []
+    @State private var selected: Segment?
+    @State private var showMore = false
     @State private var translation: BubbleTranslation?
     @State private var translating = true
     @State private var translationError: String?
+    @State private var revealed = false
     @AppStorage("preferLanguageModel") private var preferLanguageModel = true
+    @AppStorage("alwaysShowTranslation") private var alwaysShowTranslation = false
+    @AppStorage("showFurigana") private var showFurigana = false
     #if canImport(Translation)
     @State private var fallbackConfig: TranslationSession.Configuration?
     #endif
 
-    private var chars: [Character] { Array(text) }
-    private var highlight: Range<Int> { start..<min(start + (matches.first?.matchedLength ?? 1), chars.count) }
-
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    FlowText(chars: chars, highlight: highlight) { start = $0; lookup() }
-                        .padding(.vertical, 4)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    wordFlow
                     translationRow
-                    HStack {
-                        Button("Copy", systemImage: "doc.on.doc") { copy(text) }.buttonStyle(.glass)
-                        if let t = translation { Button("Copy translation", systemImage: "doc.on.doc.fill") { copy(t.text) }.buttonStyle(.glass) }
-                        Spacer()
-                        Text("OCR \(String(format: "%.1f", seconds))s").font(.caption2).foregroundStyle(.tertiary)
-                    }
+                    if let s = selected, let m = s.best { WordCard(segment: s, match: m, showMore: $showMore) }
                 }
-                if matches.isEmpty {
-                    ContentUnavailableView("No entry", systemImage: "character.book.closed", description: Text("Tap a different character to look up from there."))
-                } else {
-                    ForEach(matches) { m in EntryRow(match: m) }
-                }
+                .padding(.horizontal).padding(.top, 4)
             }
-            .listStyle(.plain)
             .navigationTitle("辞書")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Toggle(isOn: $showFurigana) { Label("Furigana", systemImage: "textformat.abc.dottedunderline") }
+                        .toggleStyle(.button).buttonStyle(.glass)
+                }
+            }
         }
-        .task { lookup(); await translate() }
+        .task { await segment(); await translate() }
         #if canImport(Translation)
         .translationTask(fallbackConfig) { session in
-            // TranslationSession isn't Sendable; the framework hands it to this
-            // closure and expects the calls to happen right here.
             nonisolated(unsafe) let s = session
             do {
                 var pieces: [String] = []
@@ -65,7 +60,31 @@ struct DictionarySheet: View {
         #endif
     }
 
+    // MARK: Words
+
+    private var wordFlow: some View {
+        FlowLayout(spacing: 4, lineSpacing: 6) {
+            ForEach(segments) { seg in
+                WordChip(segment: seg, selected: selected?.id == seg.id,
+                         furigana: (showFurigana || selected?.id == seg.id) && seg.kind == .word)
+                    .onTapGesture {
+                        guard seg.kind != .plain, seg.best != nil else { return }
+                        withAnimation(.snappy(duration: 0.2)) { selected = selected?.id == seg.id ? nil : seg; showMore = false }
+                    }
+            }
+        }
+        .padding(.top, showFurigana ? 6 : 0)
+    }
+
+    private func segment() async {
+        guard let dict = model.loadDictionary() else { return }
+        segments = await dict.segment(text)
+    }
+
+    // MARK: Translation
+
     @ViewBuilder private var translationRow: some View {
+        let show = alwaysShowTranslation || revealed
         VStack(alignment: .leading, spacing: 4) {
             if let t = translation {
                 Text(t.text).font(.body)
@@ -77,91 +96,125 @@ struct DictionarySheet: View {
                 Text(e).font(.footnote).foregroundStyle(.red)
             }
         }
-        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 12))
+        .blur(radius: show || translation == nil ? 0 : 7)   // errors and spinner stay legible
+        .overlay {
+            if !show, translation != nil {
+                Label("Tap to reveal", systemImage: "eye.slash").font(.footnote).padding(.horizontal, 10).padding(.vertical, 6)
+                    .glassEffect(.regular, in: .capsule)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeOut(duration: 0.25)) { revealed.toggle() } }
+        .animation(.easeOut(duration: 0.25), value: show)
     }
 
-    /// On-device language model when present and preferred; else Apple Translation.
     private func translate() async {
         translating = true; translationError = nil
         if preferLanguageModel, LanguageModelTranslator.isAvailable {
-            do {
-                translation = try await LanguageModelTranslator.translate(text)
-                translating = false
-                return
-            } catch { translationError = "Model: \(error.localizedDescription)" }
+            do { translation = try await LanguageModelTranslator.translate(text); translating = false; return }
+            catch { translationError = "Model: \(error.localizedDescription)" }
         }
         #if canImport(Translation)
         translationError = nil
         fallbackConfig = TranslationSession.Configuration(source: Locale.Language(identifier: "ja"), target: Locale.Language(identifier: "en"))
         #else
-        translating = false
-        translationError = translationError ?? "No translator available"
-        #endif
-    }
-
-    private func lookup() {
-        guard let dict = model.loadDictionary() else { return }
-        let from = String(chars[start...])
-        Task { matches = await dict.lookup(from) }
-    }
-
-    private func copy(_ s: String) {
-        #if os(iOS)
-        UIPasteboard.general.string = s
-        #else
-        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string)
+        translating = false; translationError = translationError ?? "No translator available"
         #endif
     }
 }
 
-/// Characters laid out as tappable cells; the current match is highlighted.
-private struct FlowText: View {
-    let chars: [Character]
-    let highlight: Range<Int>
-    let onTap: (Int) -> Void
+private struct WordChip: View {
+    let segment: Segment
+    let selected: Bool
+    let furigana: Bool
+
+    private var tint: Color {
+        switch segment.kind {
+        case .plain: .clear
+        case .particle: .secondary.opacity(0.15)
+        case .word: (segment.best?.entry.isVerbOrAdjective ?? false) ? .orange.opacity(0.18) : .blue.opacity(0.16)
+        }
+    }
+
     var body: some View {
-        let cols = [GridItem(.adaptive(minimum: 26), spacing: 2)]
-        LazyVGrid(columns: cols, alignment: .leading, spacing: 4) {
-            ForEach(Array(chars.enumerated()), id: \.offset) { i, c in
-                Text(String(c)).font(.title3)
-                    .frame(width: 26, height: 30)
-                    .background(highlight.contains(i) ? Color.yellow.opacity(0.35) : Color.clear, in: .rect(cornerRadius: 4))
-                    .contentShape(Rectangle())
-                    .onTapGesture { onTap(i) }
-            }
+        VStack(spacing: 0) {
+            Text(furigana ? (segment.best?.entry.reading ?? " ") : " ")
+                .font(.system(size: 9)).foregroundStyle(.secondary).frame(height: furigana ? 11 : 0).opacity(furigana ? 1 : 0)
+            Text(segment.text)
+                .font(.title3)
+                .foregroundStyle(segment.kind == .particle ? .secondary : .primary)
+                .padding(.horizontal, 5).padding(.vertical, 3)
+                .background(selected ? Color.yellow.opacity(0.45) : tint, in: .rect(cornerRadius: 6))
         }
     }
 }
 
-private struct EntryRow: View {
+private struct WordCard: View {
     @Environment(AppModel.self) private var model
+    let segment: Segment
     let match: DictionaryMatch
+    @Binding var showMore: Bool
+    @State private var pitch: [Int] = []
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(match.entry.headword).font(.title2.weight(.semibold))
-                if let r = match.entry.reading, r != match.entry.headword { Text(r).foregroundStyle(.secondary) }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(match.entry.headword).font(.title.weight(.semibold))
+                if let r = match.entry.reading, r != match.entry.headword { Text(r).font(.title3).foregroundStyle(.secondary) }
                 if match.entry.common { Text("common").font(.caption2).padding(.horizontal, 6).padding(.vertical, 2).background(.green.opacity(0.2), in: .capsule) }
                 Spacer()
             }
-            if !match.reasons.isEmpty {
-                Text(match.reasons.joined(separator: " ← ")).font(.caption).foregroundStyle(.orange)
+            if let r = match.entry.reading, !pitch.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(pitch.prefix(2), id: \.self) { a in PitchAccentView(pattern: PitchPattern(reading: r, accent: a)) }
+                }
+                .padding(.top, 6)
+            } else if match.entry.reading != nil {
+                Text("pitch: unknown").font(.caption2).foregroundStyle(.tertiary)
             }
-            ForEach(Array(match.entry.senses.prefix(4).enumerated()), id: \.offset) { i, s in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(s.partsOfSpeech.map { pos(code: $0) }.joined(separator: ", ")).font(.caption2).foregroundStyle(.tertiary)
-                    Text("\(i + 1). " + s.glosses.joined(separator: "; ")).font(.body)
+            if !match.reasons.isEmpty {
+                Text("\(segment.text) ← " + match.reasons.joined(separator: " ← ")).font(.caption).foregroundStyle(.orange)
+            }
+            ForEach(Array(match.entry.senses.prefix(showMore ? 6 : 2).enumerated()), id: \.offset) { i, s in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(s.partsOfSpeech.map(posName).joined(separator: ", ")).font(.caption2).foregroundStyle(.tertiary)
+                    Text("\(i + 1). " + s.glosses.prefix(showMore ? 8 : 3).joined(separator: "; ")).font(.body)
                 }
             }
+            if segment.matches.count > 1 || match.entry.senses.count > 2 {
+                DisclosureGroup("More", isExpanded: $showMore) {
+                    ForEach(segment.matches.dropFirst()) { alt in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(alt.entry.headword).font(.headline)
+                                if let r = alt.entry.reading, r != alt.entry.headword { Text(r).foregroundStyle(.secondary) }
+                            }
+                            Text(alt.entry.senses.first?.glosses.prefix(3).joined(separator: "; ") ?? "").font(.subheadline)
+                        }
+                        .padding(.vertical, 3)
+                    }
+                }
+                .font(.subheadline)
+            }
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 12))
+        .task(id: match.id) {
+            guard let d = model.loadDictionary() else { return }
+            pitch = await d.pitchAccents(for: match.entry)
+        }
     }
-    private func pos(code: String) -> String {
-        // Keep the JMdict codes readable without a blocking actor hop.
+
+    private func posName(_ code: String) -> String {
         switch code {
         case "n": "noun"; case "v1": "ichidan verb"; case "vt": "transitive"; case "vi": "intransitive"
-        case "adj-i": "i-adjective"; case "adj-na": "na-adjective"; case "adv": "adverb"; case "exp": "expression"
+        case "adj-i": "i-adjective"; case "adj-na": "na-adjective"; case "adj-no": "no-adjective"; case "adv": "adverb"; case "exp": "expression"
         case "int": "interjection"; case "prt": "particle"; case "pn": "pronoun"; case "vs": "suru verb"; case "aux-v": "auxiliary verb"
+        case "n-suf": "suffix"; case "pref": "prefix"; case "ctr": "counter"; case "num": "numeral"
         default: code.hasPrefix("v5") ? "godan verb" : code
         }
     }

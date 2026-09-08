@@ -53,6 +53,15 @@ struct StorageView: View {
                     LabeledContent("Covers in memory", value: "\(model.covers.count)")
                     Button("Refresh now", systemImage: "arrow.clockwise") { Task { await model.refreshSync() } }
                 }
+                Section("Reading aids") {
+                    Toggle("Always show translation", isOn: Binding(
+                        get: { UserDefaults.standard.bool(forKey: "alwaysShowTranslation") },
+                        set: { UserDefaults.standard.set($0, forKey: "alwaysShowTranslation") }))
+                    Toggle("Furigana on every word", isOn: Binding(
+                        get: { UserDefaults.standard.bool(forKey: "showFurigana") },
+                        set: { UserDefaults.standard.set($0, forKey: "showFurigana") }))
+                    Text("Otherwise the translation stays blurred until tapped, and furigana appears only on the word you tap.").font(.caption).foregroundStyle(.secondary)
+                }
                 Section("Translation") {
                     Toggle("Prefer on-device language model", isOn: Binding(
                         get: { UserDefaults.standard.object(forKey: "preferLanguageModel") as? Bool ?? true },
@@ -64,6 +73,7 @@ struct StorageView: View {
                 Section("Credits") {
                     Text("Dictionary: JMdict, © Electronic Dictionary Research and Development Group, CC BY-SA 4.0.").font(.caption)
                     Text("OCR: manga-ocr by kha-white (Apache 2.0), converted to Core ML.").font(.caption)
+                    Text("Pitch accent: Kanjium accent data, CC BY-SA 4.0.").font(.caption)
                 }
                 if let e = model.startupError {
                     Section("Last error") { Text(e).font(.caption).foregroundStyle(.red) }

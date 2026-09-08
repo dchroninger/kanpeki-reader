@@ -69,3 +69,50 @@ private func dict() throws -> JMDict {
         #expect(await d.describe("v1").lowercased().contains("ichidan"))
     }
 }
+
+@Suite struct PitchTests {
+    @Test func patterns() {
+        let a = PitchPattern(reading: "あめ", accent: 1)       // 雨: HL
+        #expect(a.high == [true, false] && a.kind == .atamadaka)
+        let h = PitchPattern(reading: "はし", accent: 2)       // 橋: LH, drop after → odaka
+        #expect(h.high == [false, true] && h.kind == .odaka && !h.particleHigh)
+        let g = PitchPattern(reading: "がっこう", accent: 0)   // 学校: LHHH heiban
+        #expect(g.high == [false, true, true, true] && g.kind == .heiban && g.particleHigh)
+        let t = PitchPattern(reading: "たべる", accent: 2)     // 食べる: LHL nakadaka
+        #expect(t.high == [false, true, false] && t.kind == .nakadaka)
+        #expect(PitchPattern.morae(of: "きょう") == ["きょ", "う"])
+        #expect(PitchPattern.morae(of: "とうきょう") == ["と", "う", "きょ", "う"])
+    }
+
+    @Test func lookupFromDictionary() async throws {
+        let d = try dict()
+        #expect(await d.pitchAccents(headword: "食べる", reading: "たべる") == [2])
+        #expect(await d.pitchAccents(headword: "雨", reading: "あめ") == [1])
+        let e = try #require(await d.lookup("学校").first?.entry)
+        #expect(await d.pitchAccents(for: e) == [0])
+    }
+}
+
+@Suite struct SegmenterTests {
+    @Test func segmentsSentence() async throws {
+        let d = try dict()
+        let segs = await d.segment("私は日本の学校で本を読む")
+        let texts = segs.map { "\($0.text):\($0.kind)" }
+        #expect(texts == ["私:word", "は:particle", "日本:word", "の:particle", "学校:word", "で:particle", "本:word", "を:particle", "読む:word"], "\(texts)")
+    }
+
+    @Test func keepsInflectedVerbWhole() async throws {
+        let d = try dict()
+        let segs = await d.segment("寿司を食べました")
+        #expect(segs.map(\.text) == ["寿司", "を", "食べました"], "\(segs.map(\.text))")
+        #expect(segs.last?.best?.entry.headword == "食べる")
+        #expect(segs.last?.best?.reasons == ["polite past"])
+    }
+
+    @Test func unknownRunsStayPlain() async throws {
+        let d = try dict()
+        let segs = await d.segment("ｘｙｚ雨")
+        #expect(segs.first?.kind == .plain)
+        #expect(segs.last?.text == "雨" && segs.last?.kind == .word)
+    }
+}

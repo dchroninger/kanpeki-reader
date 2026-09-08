@@ -106,3 +106,28 @@ public actor JMDict {
 }
 
 private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
+// MARK: - Pitch accent (Kanjium)
+
+public extension JMDict {
+    /// Accent numbers for a headword/reading pair (0 = heiban). Empty when unknown.
+    func pitchAccents(headword: String, reading: String) -> [Int] {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(h.db, "SELECT accents FROM pitch WHERE text = ? AND reading = ? LIMIT 1", -1, &stmt, nil) == SQLITE_OK, let stmt else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, headword, -1, SQLITE_TRANSIENT); sqlite3_bind_text(stmt, 2, reading, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(stmt) == SQLITE_ROW else {
+            // Kana-only words are stored with text == reading.
+            if headword != reading { return [] }
+            return []
+        }
+        return String(cString: sqlite3_column_text(stmt, 0)).split(separator: ",").compactMap { Int($0) }
+    }
+
+    /// Best-effort for an entry: try each kanji form, then the reading itself.
+    func pitchAccents(for entry: Entry) -> [Int] {
+        guard let reading = entry.readings.first?.text else { return [] }
+        for k in entry.kanji { let a = pitchAccents(headword: k.text, reading: reading); if !a.isEmpty { return a } }
+        return pitchAccents(headword: reading, reading: reading)
+    }
+}

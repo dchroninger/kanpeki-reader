@@ -19,6 +19,8 @@
 		4D430CFF7060E6A58CB2CCBF /* SampleLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD5DDB053BB45E8763EAB9F /* SampleLibrary.swift */; };
 		4FB12A834D809440FB1100E9 /* MangaOCRDecoder.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = A679AA2024199CAD71A6AA4F /* MangaOCRDecoder.mlpackage */; };
 		61CB9B42BFDDA87BB5E2C2BD /* jmdict.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = BC76D064A0DE2930D928B985 /* jmdict.sqlite */; };
+		64E0A33489611543DC7C76C6 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620AB079C8E10E1BCEBCC79B /* FlowLayout.swift */; };
+		7962D8F663239132CA5763DD /* PitchAccentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878FF28D95295791A3596167 /* PitchAccentView.swift */; };
 		8A0E28A9595239713E30AF64 /* KanpekiCore in Frameworks */ = {isa = PBXBuildFile; productRef = D90CB368C4D558944148AFE0 /* KanpekiCore */; };
 		90547C08D5D914BAA12E3A91 /* PageDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA6C456DEDCA5ABE9842AF76 /* PageDecoder.swift */; };
 		9A7A9DDB33B4327F3BC66C27 /* Translator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A36A2191FE1688FC6C4AEA /* Translator.swift */; };
@@ -41,11 +43,13 @@
 		50A36A2191FE1688FC6C4AEA /* Translator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translator.swift; sourceTree = "<group>"; };
 		5A6AB0417FC05141C9C07C92 /* MangaOCREncoder.mlpackage */ = {isa = PBXFileReference; path = MangaOCREncoder.mlpackage; sourceTree = "<group>"; };
 		5B53C7AF4DEEED214DEEFF57 /* DictionarySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionarySheet.swift; sourceTree = "<group>"; };
+		620AB079C8E10E1BCEBCC79B /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		64EB02615D57075978CCD554 /* manga-ocr-vocab.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "manga-ocr-vocab.txt"; sourceTree = "<group>"; };
 		727B8041FA24EC78FBA942FB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7C5914C070D5884E47EB6210 /* Kanpeki.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Kanpeki.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C826C6CF2A7467D077F1BBD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		874248FAD5C8C955DE2BBCB3 /* ProofReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofReaderView.swift; sourceTree = "<group>"; };
+		878FF28D95295791A3596167 /* PitchAccentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchAccentView.swift; sourceTree = "<group>"; };
 		A679AA2024199CAD71A6AA4F /* MangaOCRDecoder.mlpackage */ = {isa = PBXFileReference; path = MangaOCRDecoder.mlpackage; sourceTree = "<group>"; };
 		AA6C456DEDCA5ABE9842AF76 /* PageDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageDecoder.swift; sourceTree = "<group>"; };
 		AC55E91F10F7D099380A0581 /* manga-ocr.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "manga-ocr.json"; sourceTree = "<group>"; };
@@ -118,6 +122,8 @@
 			children = (
 				727B8041FA24EC78FBA942FB /* ContentView.swift */,
 				5B53C7AF4DEEED214DEEFF57 /* DictionarySheet.swift */,
+				620AB079C8E10E1BCEBCC79B /* FlowLayout.swift */,
+				878FF28D95295791A3596167 /* PitchAccentView.swift */,
 				874248FAD5C8C955DE2BBCB3 /* ProofReaderView.swift */,
 				4D7B7E0725160692623A5C97 /* StorageView.swift */,
 				E61D99EB62F33C3C05C3F55B /* VolumeGridView.swift */,
@@ -257,12 +263,14 @@
 				FB9AD5D1088169E101B7AD53 /* AppModel.swift in Sources */,
 				F48721C33537D3139CD0474C /* ContentView.swift in Sources */,
 				3036533C6F176F5ED578E0EC /* DictionarySheet.swift in Sources */,
+				64E0A33489611543DC7C76C6 /* FlowLayout.swift in Sources */,
 				E89D4023892886A70D54790A /* KanpekiApp.swift in Sources */,
 				4FB12A834D809440FB1100E9 /* MangaOCRDecoder.mlpackage in Sources */,
 				00D72C4067E3693EB2F68E53 /* MangaOCREncoder.mlpackage in Sources */,
 				90547C08D5D914BAA12E3A91 /* PageDecoder.swift in Sources */,
 				0787FF1AA04AC35A497A5A61 /* PageProvider.swift in Sources */,
 				1349868F6D9B747C0B8416E2 /* PagerView.swift in Sources */,
+				7962D8F663239132CA5763DD /* PitchAccentView.swift in Sources */,
 				9EC5B9DFE2C4534DED97A442 /* ProofReaderView.swift in Sources */,
 				4D430CFF7060E6A58CB2CCBF /* SampleLibrary.swift in Sources */,
 				F44793F8A1EE524E745FD62B /* StorageView.swift in Sources */,
