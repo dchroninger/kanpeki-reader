@@ -43,3 +43,6 @@ tools/ml/cache/
 *.mlmodelc
 Kanpeki/Resources/Models/
 Kanpeki/Resources/Dictionary/
+
+# ...except the CC0 sample volume
+!samples/*.cbz
