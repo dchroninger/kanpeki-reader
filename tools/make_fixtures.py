@@ -1,4 +1,4 @@
-"""Tiny ZIP fixtures for KanpekiCoreTests. Regenerate with ~/Manga/tools/venv/bin/python."""
+"""Tiny ZIP fixtures for KanpekiCoreTests. Regenerate with `python3 tools/make_fixtures.py <out dir>` (needs Pillow)."""
 import io, os, sys, zipfile
 from PIL import Image
 out = sys.argv[1]

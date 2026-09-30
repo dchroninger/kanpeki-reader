@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase 0: write ComicInfo.xml into every CBZ in the library, in place.
 
-    ~/Manga/tools/venv/bin/python tools/phase0_comicinfo.py [ROOT] [--dry] [--limit N] [--force]
+    python3 tools/phase0_comicinfo.py ROOT [--dry] [--limit N] [--force]
 
 Per archive: read every image header for dimensions, build ComicInfo.xml,
 rebuild to a temp file in the exact original entry order preserving each
@@ -15,9 +15,9 @@ Never touches an archive that already has ComicInfo.xml unless --force.
 """
 import io, os, re, sys, time, zipfile, datetime, unicodedata
 from xml.sax.saxutils import escape
+import tempfile
 from PIL import Image
 
-DEFAULT_ROOT = os.path.expanduser("~/Library/Mobile Documents/com~apple~CloudDocs/Manga/日本語")
 IMG = (".jpg", ".jpeg", ".png", ".webp", ".gif")
 FW2ASCII = str.maketrans("０１２３４５６７８９", "0123456789")
 VOL_RE = re.compile(r"^(?P<series>.*?)\s*(?P<num>[０-９0-9]+)(?P<sfx>[a-z]?)$")
@@ -131,11 +131,13 @@ def process(path, dry, force, log):
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    ROOT = args[0] if args else DEFAULT_ROOT
+    if not args:
+        sys.exit("usage: phase0_comicinfo.py ROOT [--dry] [--limit N] [--force]")
+    ROOT = args[0]
     dry = "--dry" in sys.argv; force = "--force" in sys.argv
     limit = int(sys.argv[sys.argv.index("--limit") + 1]) if "--limit" in sys.argv else None
     report = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phase0_report.log")
-    TMPDIR = os.environ.get("PHASE0_TMP") or os.path.join(os.path.expanduser("~/Manga/tools"), ".phase0tmp")
+    TMPDIR = os.environ.get("PHASE0_TMP") or os.path.join(tempfile.gettempdir(), "phase0tmp")
     os.makedirs(TMPDIR, exist_ok=True)
     def log(m):
         print(m, flush=True)

@@ -10,7 +10,6 @@ device wipe costs the entire setup.
 
 **Start here:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — decisions,
 rationale, and the phased plan.
-[`docs/LIBRARY.md`](docs/LIBRARY.md) — the real library this is built against.
 
 ## Status
 

@@ -120,7 +120,7 @@ is the difference between a contained swap and a rewrite. Do not scatter
 offset — no decompression. `mmap` the file and hand
 `CGImageSourceCreateWithDataProvider` a subrange.
 
-**7 archives use DEFLATE** (see LIBRARY.md). Treat STORED as an
+**Some archives use DEFLATE** (in the author's library, 7 of 159). Treat STORED as an
 optimisation, never an assumption. Keep producing STORED for archives we
 build ourselves.
 
@@ -242,8 +242,8 @@ Precedent for the category: VLC, Infuse, Documents by Readdle.
 ### Phase 0 — metadata (no code)
 Generate `ComicInfo.xml` into all 159 archives. Pure upside: needed by
 this app, and makes the library work in Komga/Kavita regardless.
-Must preserve archive entry order (technique already proven — see
-`~/Manga/tools/apply.py`).
+Must preserve archive entry order (technique already proven in the
+author's own tooling).
 
 ### Phase 1 — iCloud, and nothing else  <-- CURRENT GOAL
 Prove the plumbing before building a product on it.
@@ -284,10 +284,10 @@ Resolved 2026-09-07:
   code; AppKit host; ubiquity + `NSMetadataQuery` behave identically.
 - **ZIP reader: hand-rolled.** Central-directory parser, STORED = mmap
   subrange, DEFLATE via `Compression` (zlib raw). No dependency.
-  Tested against the 7 DEFLATE archives in LIBRARY.md.
+  Tested against real DEFLATE archives.
 - **Phase 0 runs before the scanner**, in place, order-preserving,
   verified per archive before atomic replace. Original compression method
-  per entry is preserved so LIBRARY.md's STORED/DEFLATE facts stay true.
+  per entry is preserved so the STORED/DEFLATE mix stays as it was.
 
 Still OPEN:
 

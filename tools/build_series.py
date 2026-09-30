@@ -5,7 +5,7 @@
 
 choice.json maps volume number -> folder of page images. Ordering: cover /
 表紙 / _C first, '#' colour frontispieces, body, omake/巻末 last, natural
-sort within each group (rules from ~/Manga/tools/README.md). Images under
+sort within each group (same ordering rules as phase0_comicinfo.py). Images under
 12 KB are scanner junk and dropped.
 """
 import io, json, os, re, sys, zipfile, time
